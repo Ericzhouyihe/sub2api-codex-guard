@@ -1,4 +1,4 @@
-# Codex 降智测试（糖果 / 指纹 / 鹈鹕）· Sub2API
+# Codex 降智测试（糖果 / 指纹 / 鹈鹕 / SIWC）· Sub2API
 
 本仓库包含两套交付：
 
@@ -115,4 +115,7 @@ go run ./tools/package build `
 
 ## 许可
 
-本项目以 **MIT** 许可证发布，见 [LICENSE](LICENSE)。第三方组件与参考实现见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- 根目录插件（`cmd/`、`internal/`、`ui/`、`tools/`）以 **MIT** 许可证发布，见 [LICENSE](LICENSE)。
+- `codex-eval/` 是 `Nanboom233/codex-candy-eval` 的 fork，沿用其 **LGPL-3.0** 许可证，见 [codex-eval/LICENSE](codex-eval/LICENSE)。
+
+第三方组件与参考实现见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

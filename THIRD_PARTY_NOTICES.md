@@ -37,3 +37,10 @@
 - 来源：https://github.com/1812095643/sub2api-excel2api-plugin
 - 许可证：仓库未附独立 LICENSE 文件（使用前请向作者确认）
 - 说明：仅参考其 `InitHostServices` / `ListAccounts` / `ResolveOutboundIdentity` 的调用方式，未复制代码。
+
+## 7. codex-candy-eval 全功能 fork（codex-eval/）
+
+- 来源：https://github.com/Nanboom233/codex-candy-eval
+- 许可证：LGPL-3.0（`codex-eval/LICENSE`）；其 `licenses/` 目录另含 CPA MIT、LM-detector MIT、Sub2API LGPL-3.0 等第三方许可证。
+- 说明：`codex-eval/` 保留原项目全部补丁、UI 与测试，仅修复补丁换行、增加可移植构建参数与 GitHub Actions。该子目录按其原许可证分发，不适用根项目的 MIT 许可。
+
