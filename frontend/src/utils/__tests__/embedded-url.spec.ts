@@ -55,6 +55,17 @@ describe('embedded-url', () => {
     expect(url.searchParams.has('lang')).toBe(false)
   })
 
+  it('resolves the same-origin Model Guard page without carrying legacy tokens', () => {
+    const result = buildEmbeddedUrl('/codex-eval?token=stale&%74oken=encoded', undefined, 'dark', 'zh-CN')
+    const url = new URL(result)
+    expect(url.origin).toBe('https://app.example.com')
+    expect(url.pathname).toBe('/codex-eval')
+    expect(url.searchParams.has('token')).toBe(false)
+    expect(url.searchParams.get('theme')).toBe('dark')
+    expect(url.searchParams.get('lang')).toBe('zh-CN')
+    expect(result).not.toMatch(/stale|encoded/)
+  })
+
   it('returns original string for invalid url input', () => {
     expect(buildEmbeddedUrl('not a url', 1)).toBe('not a url')
   })

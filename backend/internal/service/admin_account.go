@@ -779,8 +779,18 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		delete(normalizedExtra, grokObservedModelsExtraKey)
 		delete(normalizedExtra, UpstreamModelMetadataExtraKey)
 		delete(normalizedExtra, UpstreamModelSyncExtraKey)
+		// Model Guard state is written only through its dedicated operations.
+		// Ignore both stale form snapshots and injected keys for new accounts.
+		delete(normalizedExtra, "codex_eval_inspection_enabled")
+		delete(normalizedExtra, "codex_eval_inspection_verdict")
+		delete(normalizedExtra, "codex_eval_inspection_removed_models")
+		delete(normalizedExtra, CodexInspectionBlockedModelsExtraKey)
 		// 保留配额用量和专用服务受管字段，防止普通账号编辑意外覆盖。
 		for _, key := range []string{
+			"codex_eval_inspection_enabled",
+			"codex_eval_inspection_verdict",
+			"codex_eval_inspection_removed_models",
+			CodexInspectionBlockedModelsExtraKey,
 			"quota_used",
 			"quota_daily_used",
 			"quota_daily_start",

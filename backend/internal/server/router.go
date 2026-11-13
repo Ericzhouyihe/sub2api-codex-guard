@@ -143,6 +143,14 @@ func registerRoutes(
 		return
 	}
 
+	// Model Guard runs only on the primary, never on gateway-only replicas.
+	h.Admin.Account.InitializeCodexEval(cfg.Pricing.DataDir)
+	h.Admin.Setting.InitializeCodexInspection(h.Admin.Account)
+	// Public endpoints serve static HTML only. All data and control APIs below
+	// remain behind the existing admin authentication and authorization chain.
+	r.GET("/codex-eval", h.Admin.Account.CodexEvalPage)
+	r.GET("/codex-eval/", h.Admin.Account.CodexEvalPage)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 

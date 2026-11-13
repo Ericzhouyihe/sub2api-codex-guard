@@ -917,6 +917,9 @@ func lockAndMergeAccountProbeExtra(
 		}
 		extra[service.QualityModelIsolationKey] = isolation
 	}
+	// The inspection overlay is also server-owned. Preserve the committed
+	// state under the existing row lock, not a possibly stale admin snapshot.
+	extra = preserveCodexInspectionExtra(extra, currentExtra)
 
 	// Omitted cost means an unrelated edit. Keep the value under the row lock,
 	// including a probe update committed after the edit form was loaded.
@@ -3557,6 +3560,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	// Only ordinary bulk saves reject this input; runtime UpdateExtra remains
 	// available to the dedicated isolation owner.
 	delete(updates.Extra, service.QualityModelIsolationKey)
+	for _, key := range codexInspectionOwnedExtraKeys {
+		delete(updates.Extra, key)
+	}
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)

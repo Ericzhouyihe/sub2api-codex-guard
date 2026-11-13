@@ -544,6 +544,10 @@ const ServerIcon = {
     )
 }
 
+const EvaluationIcon = {
+  render: () => h(Icon, { name: 'beaker' })
+}
+
 const PluginIcon = {
   render: () => h(Icon, { name: 'cube' })
 }
@@ -885,6 +889,7 @@ const adminNavItems = computed((): NavItem[] => {
     // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+    { path: '/admin/codex-eval', label: t('nav.accountEvaluation'), icon: EvaluationIcon },
     { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: SmartOpsIcon, expandOnly: true, children: [
       { path: '/admin/lottery', label: t('lottery.adminTitle'), icon: GiftIcon, hideInSimpleMode: true },
       { path: '/admin/auto-config', label: t('autoConfig.title'), icon: AccountOpsIcon },

@@ -612,6 +612,17 @@ const routes: RouteRecordRaw[] = [
       descriptionKey: 'admin.accounts.description'
     }
   },
+  {
+    path: '/admin/codex-eval',
+    name: 'AdminCodexEval',
+    component: () => import('@/views/admin/CodexEvalView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Model Guard',
+      titleKey: 'nav.accountEvaluation'
+    }
+  },
   { path: '/admin/astra-gateway', redirect: '/admin/harvest-flow' },
   {
     path: '/admin/harvest-flow',

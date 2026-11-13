@@ -96,6 +96,11 @@ func filterRetiredOpenAIPublicModelsBody(body []byte, accounts []Account, codex 
 // Compact-only administrator mappings are evaluated against their actual
 // target, without treating an old client-visible name as a retired target.
 func supportsOpenAIRequestModel(account *Account, requestedModel string, requireCompact bool) bool {
+	// Compact routing can select a different upstream target than the normal
+	// mapping, so test that target in addition to the public request name.
+	if account.codexInspectionUpstreamModelBlocked(resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)) {
+		return false
+	}
 	if account.Platform == PlatformOpenAI && !account.oauthInitialSelectionAllows(resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)) {
 		return false
 	}

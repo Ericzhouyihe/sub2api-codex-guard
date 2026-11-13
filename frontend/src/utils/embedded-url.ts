@@ -19,7 +19,10 @@ export function buildEmbeddedUrl(
 ): string {
   if (!baseUrl) return baseUrl
   try {
-    const url = new URL(baseUrl)
+    // Only root-relative app endpoints need an origin; keep malformed text
+    // from silently turning into a URL and preserve absolute external embeds.
+    const origin = baseUrl.startsWith('/') && typeof window !== 'undefined' ? window.location.origin : undefined
+    const url = new URL(baseUrl, origin)
     if (userId) {
       url.searchParams.set(EMBEDDED_USER_ID_QUERY_KEY, String(userId))
     }

@@ -17,6 +17,7 @@ import (
 
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
 	"github.com/Wei-Shaw/sub2api/internal/bepusdt"
+	"github.com/Wei-Shaw/sub2api/internal/codexeval"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/mihomo"
@@ -215,6 +216,7 @@ func runMainServer() {
 	log.Println("Shutting down server...")
 
 	app.Lifecycle.BeginDrain()
+	codexeval.StopInspection()
 	if delay := time.Duration(cfg.Server.ShutdownDrainDelay) * time.Second; delay > 0 {
 		time.Sleep(delay)
 	}

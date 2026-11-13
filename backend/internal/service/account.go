@@ -1078,6 +1078,11 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 }
 
 func (a *Account) isModelMappingSupported(requestedModel string) bool {
+	// Model Guard restrictions precede all permissive modes, including empty
+	// mappings, wildcards and passthrough. The original mappings remain intact.
+	if a.codexInspectionModelBlocked(requestedModel) {
+		return false
+	}
 	if !a.oauthInitialSelectionAllows(requestedModel) || !a.oauthInitialSelectionAllows(a.GetMappedModel(requestedModel)) {
 		return false
 	}

@@ -207,6 +207,7 @@ export default {
     modelPlaza: 'Model Plaza',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
+    accountEvaluation: 'Model Guard',
     harvestFlow: 'Ticket Flow',
     plugins: 'Plugins',
     proxies: 'Proxies',

@@ -396,7 +396,7 @@ func doUpstreamRequest(client *http.Client, req *http.Request) (result *http.Res
 	resp, err := servertiming.Do(client, req.WithContext(ctx))
 	if err != nil {
 		cancel()
-		return resp, err
+		return resp, &service.HTTPUpstreamRequestError{Err: err}
 	}
 	timingTrace.Headers(resp)
 	requesttiming.Encoding(req.Context(), resp)
