@@ -162,6 +162,10 @@ python scripts/build.py
 
 产物在 `dist/build/<platform>/`，例如 `dist/build/linux-amd64/sub2api-plugins-installer-v0.2.21-linux-amd64`。
 
+## 许可
+
+本目录是 `Nanboom233/codex-candy-eval` 的 fork，沿用其 **LGPL-3.0** 许可证，见 [LICENSE](LICENSE)。第三方依赖与参考实现的许可证见 [licenses/](licenses/)。
+
 ## 致谢
 
 - [Sub2API](https://github.com/Wei-Shaw/sub2api)：本项目使用的管理平台。
