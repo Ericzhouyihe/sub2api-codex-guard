@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "io.github.codexguard.sub2api",
-  "name": "Codex 降智测试（糖果/指纹/鹈鹕）",
+  "name": "Codex 降智测试（糖果/指纹/鹈鹕/SIWC）",
   "version": "0.2.0",
-  "description": "定期用糖果题、数字指纹和鹈鹕画图检测 OpenAI OAuth 账号的 Codex 是否降智；所有真实 Codex 流量原样透传，不改变转发行为。",
+  "description": "定期用糖果题、数字指纹、鹈鹕画图和 SIWC 可用性探测检测 OpenAI OAuth 账号的 Codex 是否降智；所有真实 Codex 流量原样透传，不改变转发行为。",
   "author": "codex-guard contributors",
   "requires": {
     "sub2api": ">=0.2.7 <0.3.0",
