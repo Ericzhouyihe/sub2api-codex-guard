@@ -1,0 +1,168 @@
+name: Build Codex Eval Installer
+
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Codex Eval build {0}', inputs.upstream_tag || 'latest') || 'Codex Eval scheduled compatibility build' }}
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: "Upstream Sub2API version tag (empty = latest release)"
+        required: false
+        default: ""
+        type: string
+      force:
+        description: "Rebuild even if a release already exists"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: write
+  issues: write
+
+defaults:
+  run:
+    shell: bash
+    working-directory: codex-eval
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  SUB2API_BUILD_WORKSPACE: ${{ github.workspace }}/codex-eval/dist/work
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  COREPACK_ENABLE_AUTO_PIN: "0"
+  COREPACK_ENABLE_PROJECT_SPEC: "0"
+
+jobs:
+  resolve:
+    name: Resolve upstream version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      should_build: ${{ steps.version.outputs.should_build }}
+    steps:
+      - name: Resolve latest release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.upstream_tag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ]; then
+            tag="$(curl -fsSL -H 'Accept: application/vnd.github+json' \
+              https://api.github.com/repos/Wei-Shaw/sub2api/releases/latest | jq -r .tag_name)"
+          fi
+          if ! [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid upstream tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" = "true" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-release:
+    name: Build ${{ needs.resolve.outputs.tag }}
+    needs: resolve
+    if: needs.resolve.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GOMODCACHE: ${{ github.workspace }}/codex-eval/dist/cache/go-mod
+      GOCACHE: ${{ github.workspace }}/codex-eval/dist/cache/go-build
+      pnpm_config_store_dir: ${{ github.workspace }}/codex-eval/dist/cache/pnpm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version: "1.27.x"
+          cache: false
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version: "24"
+      - name: Prepare Corepack
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+      - name: Download and patch source
+        id: source
+        env:
+          SUB2API_BUILD_STAGE: source
+          UPSTREAM_TAG: ${{ needs.resolve.outputs.tag }}
+          SUB2API_BUILD_PLATFORMS: "linux-amd64 linux-arm64"
+        run: |
+          python3 scripts/build.py
+          source_sha="$(git rev-parse HEAD)"
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\n' "$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
+          printf 'platforms=%s\n' "$SUB2API_BUILD_PLATFORMS" >> "$GITHUB_OUTPUT"
+      - name: Load caches
+        uses: actions/cache/restore@v4
+        id: dependencies
+        with:
+          path: |
+            ${{ env.GOMODCACHE }}
+            ${{ env.GOCACHE }}
+            ${{ env.pnpm_config_store_dir }}
+          key: dependencies-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ steps.node.outputs.node-version }}-${{ steps.source.outputs.pnpm }}-${{ hashFiles('codex-eval/dist/work/source/backend/go.mod', 'codex-eval/dist/work/source/backend/go.sum', 'codex-eval/dist/work/source/frontend/pnpm-lock.yaml', 'codex-eval/scripts/build.py') }}-${{ github.sha }}
+          restore-keys: |
+            dependencies-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ steps.node.outputs.node-version }}-${{ steps.source.outputs.pnpm }}-
+      - name: Test and build selected platforms
+        env:
+          SUB2API_BUILD_STAGE: resume
+          UPSTREAM_TAG: ${{ steps.source.outputs.tag }}
+          SUB2API_BUILD_PLATFORMS: ${{ steps.source.outputs.platforms }}
+        run: python3 scripts/build.py
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-eval-${{ needs.resolve.outputs.tag }}
+          path: |
+            codex-eval/dist/build/linux-amd64/*
+            codex-eval/dist/build/linux-arm64/*
+          if-no-files-found: error
+      - name: Publish Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          UPSTREAM_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          assets=()
+          for platform in linux-amd64 linux-arm64; do
+            for component in '' 'installer-'; do
+              assets+=("dist/build/$platform/sub2api-plugins-${component}${UPSTREAM_TAG}-${platform}")
+            done
+          done
+          gh release delete "$UPSTREAM_TAG" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$UPSTREAM_TAG" "${assets[@]}" \
+            --target "$SOURCE_SHA" \
+            --title "Sub2API Codex Eval Plugin ${UPSTREAM_TAG}" \
+            --generate-notes
+      - name: Report compatibility failure
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          title="Codex Eval compatibility failed for ${UPSTREAM_TAG}"
+          if ! gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" | grep -q .; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "The scheduled build for Sub2API ${UPSTREAM_TAG} failed. Update codex-eval/patches/ for the new upstream, then re-run the Build workflow. See the failed run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi

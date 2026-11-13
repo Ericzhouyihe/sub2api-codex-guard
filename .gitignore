@@ -1,0 +1,23 @@
+# build output
+dist/
+build/
+*.s2plugin
+*.exe
+
+# local agent/editor data
+.dsh/
+node_modules/
+.pnpm-store/
+
+# signing keys must never be committed
+*.private
+*.public
+
+# local
+.env
+.env.*
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
