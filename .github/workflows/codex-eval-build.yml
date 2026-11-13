@@ -108,8 +108,6 @@ jobs:
           python3 scripts/build.py
           source_sha="$(git rev-parse HEAD)"
           printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
-          printf 'tag=%s\n' "$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
-          printf 'platforms=%s\n' "$SUB2API_BUILD_PLATFORMS" >> "$GITHUB_OUTPUT"
       - name: Load caches
         uses: actions/cache/restore@v4
         id: dependencies
