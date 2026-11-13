@@ -62,6 +62,22 @@ func (i *installer) checkProgram(path, system, arch string) error {
 	return nil
 }
 
+// ensureBackup verifies that a backup was actually created before any target
+// binary is replaced. It intentionally rejects empty files and directories.
+func ensureBackup(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("backup is missing: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("backup is not a regular file")
+	}
+	if info.Size() == 0 {
+		return errors.New("backup is empty")
+	}
+	return nil
+}
+
 func extractPayload(system, arch string) (string, func(), error) {
 	directory, err := os.MkdirTemp("", "sub2api-plugins-payload-")
 	if err != nil {

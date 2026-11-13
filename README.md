@@ -3,14 +3,14 @@
 本仓库包含两套交付：
 
 1. **根目录：官方 `.s2plugin` 插件（稳定轻量版）**——可上传到 Sub2API「插件管理」，更新 Sub2API 后不会消失；受官方能力白名单限制，只能检测 **OpenAI OAuth** 账号。
-2. **`codex-eval/`：`Nanboom233/codex-candy-eval` 的完整 fork（全功能版）**——保留多供应商（OpenAI / Anthropic / Gemini / Antigravity）、账户评估侧栏、自动巡检、模型控制、优先级和通知；通过安装器替换容器内 `/app/sub2api` 二进制，并带有按上游 release 自动构建的 GitHub Actions。它已适配到 **Sub2API v0.2.21**，后续版本由 CI 自动尝试构建。
+2. **`codex-eval/`：`Nanboom233/codex-candy-eval` 的完整 fork（全功能版）**——保留多供应商（OpenAI / Anthropic / Gemini / Antigravity）、账户评估侧栏、自动巡检、模型控制、优先级和通知；通过安装器替换容器内 `/app/sub2api` 二进制。它已适配到 **Sub2API v0.2.21**，使用本地构建，不依赖 GitHub Actions 或云端 CI。
 
 已构建的 v0.2.21 Linux amd64 安装器：
 
-- `codex-eval/dist/build/linux-amd64/sub2api-plugins-installer-v0.2.21-linux-amd64`（51,560,608 B，SHA256 `D49CAF6B601BCFD06D750371D475ADC80F4581DB65EC8CBE04522FF7B37D7591`）
+- `codex-eval/dist/build/linux-amd64/sub2api-plugins-installer-v0.2.21-linux-amd64`（51,568,800 B，SHA256 `5037F559D0A025BD970890109FD119C8E04CD6FB070A297B09304E7D2B6621BE`）
 - `codex-eval/dist/build/linux-amd64/sub2api-plugins-v0.2.21-linux-amd64`（服务端二进制，由安装器嵌入）
 
-完整版构建、安装、自动适配说明见 [`codex-eval/README.md`](codex-eval/README.md) 与 [`docs/codex-eval-fork.md`](docs/codex-eval-fork.md)。下面是根目录 `.s2plugin` 的说明。
+完整版本地构建、安装与兼容性说明见 [`codex-eval/README.md`](codex-eval/README.md) 与 [`docs/codex-eval-fork.md`](docs/codex-eval-fork.md)。下面是根目录 `.s2plugin` 的说明。
 
 ---
 

@@ -2,7 +2,9 @@
 """Download Sub2API, apply all plugin patches, run tests, and build the installer."""
 
 import argparse
+from datetime import datetime, timezone
 import gzip
+import hashlib
 import json
 import os
 import platform
@@ -13,32 +15,100 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = os.environ.get("SUB2API_UPSTREAM", "https://github.com/Wei-Shaw/sub2api.git")
 PNPM = os.environ.get("SUB2API_PNPM", "pnpm@12.16.1")
 PNPM_BIN = os.environ.get("SUB2API_PNPM_BIN", "")
+DEFAULT_UPSTREAM_TAG = "v0.2.21"
 TARGETS = (("linux", "amd64"), ("linux", "arm64"), ("darwin", "amd64"), ("darwin", "arm64"), ("windows", "amd64"))
 PTERM = "github.com/pterm/pterm@v0.12.84"
 
 
 def resolve_upstream_tag():
-    tag = os.environ.get("UPSTREAM_TAG", "").strip()
+    tag = os.environ.get("UPSTREAM_TAG", DEFAULT_UPSTREAM_TAG).strip()
     if not tag:
-        request = urllib.request.Request(
-            "https://api.github.com/repos/Wei-Shaw/sub2api/releases/latest",
-            headers={"Accept": "application/vnd.github+json", "User-Agent": "Sub2API-Plugins-build"},
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                release = json.load(response)
-        except (OSError, ValueError) as error:
-            raise RuntimeError(f"Cannot read the latest upstream release: {error}") from error
-        tag = release.get("tag_name") if isinstance(release, dict) else None
+        raise RuntimeError("UPSTREAM_TAG must not be empty; use the default v0.2.21 or an explicit tag.")
     if not isinstance(tag, str) or not re.fullmatch(r"v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", tag):
         raise RuntimeError(f"Invalid upstream version tag: {tag!r}")
-    return tag
+    return tag if tag.startswith("v") else f"v{tag}"
+
+
+def write_build_status(root, state, tag="", detail="", artifacts=None):
+    path = root / "dist" / "build-status.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "state": state,
+        "tag": tag,
+        "detail": detail,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if artifacts:
+        payload["artifacts"] = [str(item) for item in artifacts]
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def mark_build_failure(root, tag, error):
+    write_build_status(root, "failed", tag, str(error))
+    marker = root / "dist" / "BUILD_FAILED.txt"
+    marker.write_text(
+        "This build failed. Do not treat dist/build as the output of this run.\n"
+        f"tag: {tag or '<unresolved>'}\nerror: {error}\n",
+        encoding="utf-8",
+    )
+
+
+def archive_previous_output(root):
+    """Move a previous dist/build aside so a failed run cannot masquerade as success."""
+    output = root / "dist" / "build"
+    if not output.exists():
+        return None
+    stale_root = root / "dist" / ".stale"
+    stale_root.mkdir(parents=True, exist_ok=True)
+    target = stale_root / ("build-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S"))
+    suffix = 1
+    while target.exists():
+        target = stale_root / ("build-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + f"-{suffix}")
+        suffix += 1
+    shutil.move(str(output), str(target))
+    return target
+
+
+def require_version(name, argv, minimum, parser):
+    binary = shutil.which(argv[0])
+    if not binary:
+        raise RuntimeError(f"{name} is required but was not found on PATH. See docs/codex-eval-fork.md.")
+    result = subprocess.run([binary, *argv[1:]], text=True, capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"{name} version check failed: {result.stderr.strip() or result.stdout.strip()}")
+    version = parser(result.stdout + result.stderr)
+    if version is None:
+        raise RuntimeError(f"{name} version could not be parsed: {result.stdout.strip() or result.stderr.strip()}")
+    if version < minimum:
+        raise RuntimeError(f"{name} {version} is too old; need >= {minimum}")
+    return version
+
+
+def check_prerequisites():
+    if sys.version_info < (3, 11):
+        raise RuntimeError("Python >= 3.11 is required.")
+    require_version("Go", ["go", "version"], (1, 27), lambda text: _go_version(text))
+    require_version("Node", ["node", "--version"], (20, 0), lambda text: _node_version(text))
+    if PNPM_BIN:
+        if not Path(PNPM_BIN).is_file():
+            raise RuntimeError(f"SUB2API_PNPM_BIN does not exist: {PNPM_BIN}")
+    elif not shutil.which("corepack"):
+        raise RuntimeError("corepack is required when SUB2API_PNPM_BIN is not set.")
+
+
+def _go_version(text):
+    match = re.search(r"go(\d+)\.(\d+)", text)
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def _node_version(text):
+    match = re.search(r"v?(\d+)\.(\d+)", text)
+    return (int(match.group(1)), int(match.group(2))) if match else None
 
 
 def artifact_name(system, arch, tag, installer=False):
@@ -270,6 +340,14 @@ def installer(workspace, tag, target):
     return binary
 
 
+def write_checksums(directory):
+    lines = []
+    for path in sorted(item for item in directory.iterdir() if item.is_file()):
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        lines.append(f"{digest}  {path.name}")
+    (directory / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def publish(root, workspace, tag, selected):
     prepared = workspace / "outputs"
     prepared.mkdir()
@@ -282,6 +360,7 @@ def publish(root, workspace, tag, selected):
             binary = directory / name
             shutil.copyfile(workspace / kind / name, binary)
             binary.chmod(0o755)
+        write_checksums(directory)
     output = root / "dist/build"
     publish_outputs(prepared, output)
     return sorted(path for path in output.glob("*/*") if path.is_file())
@@ -294,6 +373,7 @@ def build(root, workspace, tag, selected=None):
 
 
 def resume(root, workspace, tag, selected):
+    archive_previous_output(root)
     prepare(root, workspace, tag)
     for target in sorted(set(required_servers(selected)) - set(common_targets())):
         server(workspace, tag, target)
@@ -327,12 +407,17 @@ def run_stage(root, workspace, stage, tag, selected):
 
 def main():
     argparse.ArgumentParser(description=__doc__).parse_args()
+    tag = ""
+    (ROOT / "dist" / "BUILD_FAILED.txt").unlink(missing_ok=True)
     try:
         stage = os.environ.get("SUB2API_BUILD_STAGE")
         selected = selected_platforms(os.environ.get("SUB2API_BUILD_PLATFORMS"))
-        tag = resolve_upstream_tag() if not stage or stage == "source" else os.environ.get("UPSTREAM_TAG")
+        tag = resolve_upstream_tag() if not stage or stage == "source" else os.environ.get("UPSTREAM_TAG", DEFAULT_UPSTREAM_TAG)
         if not tag:
             raise RuntimeError("Pass the resolved UPSTREAM_TAG to the resumed build stage.")
+        if stage != "source":
+            check_prerequisites()
+        write_build_status(ROOT, "building", tag, "Build started")
         if stage:
             location = os.environ.get("SUB2API_BUILD_WORKSPACE")
             if not location:
@@ -344,9 +429,11 @@ def main():
             with tempfile.TemporaryDirectory(prefix="sub2api-plugins-") as temporary:
                 print(f"Build workspace: {temporary}", flush=True)
                 outputs = build(ROOT, Path(temporary), tag, selected)
+        write_build_status(ROOT, "success", tag, "Build completed", outputs)
         for output in outputs:
             print(output, flush=True)
     except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        mark_build_failure(ROOT, tag, error)
         print(f"Build failed: {error}. No new outputs were published.", file=sys.stderr)
         return 1
     return 0

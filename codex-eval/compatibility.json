@@ -1,0 +1,26 @@
+{
+  "id": "sub2api-v0.2.21__codex-eval-v0.4.6",
+  "upstream_version": "v0.2.21",
+  "fork_version": "v0.4.6",
+  "patchset_revision": "24ccd110743b5cc88813457313fd21cab54ca7e0fefd0c8486815b36c6fc141a",
+  "status": "planned",
+  "verified_at": null,
+  "verified_by": null,
+  "artifacts": [
+    {
+      "kind": "installer",
+      "platform": "linux-amd64",
+      "filename": "sub2api-plugins-installer-v0.2.21-linux-amd64",
+      "size_bytes": 51568800,
+      "sha256": "5037f559d0a025bd970890109fd119c8e04cd6fb070a297b09304e7d2b6621be"
+    },
+    {
+      "kind": "server",
+      "platform": "linux-amd64",
+      "filename": "sub2api-plugins-v0.2.21-linux-amd64",
+      "size_bytes": 132694176,
+      "sha256": "a0062137f80d6c740d489be603d21298eb6d09682fcd72803ed0eeeb48574714"
+    }
+  ],
+  "notes": "T019 干净本地构建成功：source+resume 两阶段，共 423 秒；server 哈希与之前一致，installer 因重新链接哈希更新。真实安装验证待服务器执行。"
+}

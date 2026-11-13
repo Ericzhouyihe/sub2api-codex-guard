@@ -185,6 +185,9 @@ func (i *installer) replaceNative(ctx context.Context, target nativeTarget, sour
 	if err := copyProgram(target.path, backup, target.path, target.info); err != nil {
 		return err
 	}
+	if err := ensureBackup(backup); err != nil {
+		return fmt.Errorf(i.msg("Check the existing executable: %w"), err)
+	}
 	i.stopProgress()
 	fmt.Fprintf(i.out, i.msg("Backup: %s\n"), backup)
 	if err := ctx.Err(); err != nil {

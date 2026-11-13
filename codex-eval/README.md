@@ -98,7 +98,7 @@ SIWC 检测仅适用于 OpenAI OAuth 账户，每个账户发送 1 次简短 Res
 
 ## 安装
 
-在仓库根目录的 [`.github/workflows/codex-eval-build.yml`](../.github/workflows/codex-eval-build.yml)（把 `codex-eval/` 单独作为仓库时为 `codex-eval/.github/workflows/build.yml`）中打开一次成功的构建运行，下载对应平台的 `sub2api-plugins-installer-<upstream_tag>-<os>-<arch>` 并运行。安装方式、注意事项和手动恢复步骤见 [Sub2API-Plugins](https://github.com/Nanboom233/Sub2API-Plugins#installation)。
+先按下方「构建」在本地生成 `dist/build/<platform>/sub2api-plugins-installer-<upstream_tag>-<os>-<arch>`，上传到 Sub2API 服务器后运行。安装方式、注意事项和手动恢复步骤见 [Sub2API-Plugins](https://github.com/Nanboom233/Sub2API-Plugins#installation)。本项目不依赖 GitHub Actions 或任何云端构建。
 
 如需同时安装多个插件，请使用 Sub2API-Plugins 的组合安装器。
 
@@ -117,16 +117,16 @@ SIWC 检测仅适用于 OpenAI OAuth 账户，每个账户发送 1 次简短 Res
 
 ## 兼容性与自动适配
 
-本仓库是 [Nanboom233/codex-candy-eval](https://github.com/Nanboom233/codex-candy-eval) 的 fork，面向 Sub2API 最新 release 自动构建安装器。
+本仓库是 [Nanboom233/codex-candy-eval](https://github.com/Nanboom233/codex-candy-eval) 的 fork，提供可复现的本地安装器构建。
 
 - 当前已验证：Sub2API **v0.2.21**（7 个补丁全部可应用，Linux amd64 构建通过）。
-- 原版只声明支持到 v0.2.20；本 fork 修复了补丁文件的 CRLF 换行问题，并增加了按上游 release 自动构建的 GitHub Actions。
-- 每个 Sub2API 新版本发布后，CI 会尝试 `git apply --binary` 全部补丁；如果上游改动导致补丁失效，CI 失败并提示需要适配，而不是产出坏包。
+- 原版只声明支持到 v0.2.20；本 fork 修复了补丁文件的 CRLF 换行问题，并固定 `UPSTREAM_TAG=v0.2.21`。
+- Sub2API 新版本发布后，在本机重新运行 `source`/`resume`；如果上游改动导致补丁失效，构建会失败并提示需要适配，而不是产出坏包。
 
 ## 构建
 
 ```sh
-# 默认自动读取 Sub2API 最新 release，也可固定版本
+# 固定 Sub2API v0.2.21（默认值也是 v0.2.21）
 UPSTREAM_TAG=v0.2.21 python3 scripts/build.py
 
 # 只构建 Linux 服务器需要的安装器（推荐）
@@ -153,7 +153,7 @@ $env:SUB2API_BUILD_STAGE = "source"
 python scripts/build.py
 
 $env:SUB2API_BUILD_STAGE = "resume"
-$env:SUB2API_SKIP_TESTS = "1"      # 本机内存不足时跳过 Go 测试；CI 会完整跑
+$env:SUB2API_SKIP_TESTS = "1"      # 本机内存不足时跳过 Go 测试；正式验收会完整跑
 $env:SUB2API_SKIP_FRONTEND = "1"   # 已成功构建过 frontend 时可跳过重复构建
 $env:NODE_OPTIONS = "--max-old-space-size=8192"
 $env:SUB2API_GOFLAGS = "-mod=readonly -p=2"

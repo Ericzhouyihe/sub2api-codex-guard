@@ -518,6 +518,9 @@ func (i *installer) install(ctx context.Context, source string) error {
 	if _, err := i.docker(ctx, false, "cp", cid+":"+path, backup); err != nil {
 		return err
 	}
+	if err := ensureBackup(backup); err != nil {
+		return fmt.Errorf(i.msg("Check the existing executable: %w"), err)
+	}
 	if err := i.checkProgram(backup, "linux", i.containerArch()); err != nil {
 		return fmt.Errorf(i.msg("Check the existing executable: %w"), err)
 	}

@@ -42,5 +42,5 @@
 
 - 来源：https://github.com/Nanboom233/codex-candy-eval
 - 许可证：LGPL-3.0（`codex-eval/LICENSE`）；其 `licenses/` 目录另含 CPA MIT、LM-detector MIT、Sub2API LGPL-3.0 等第三方许可证。
-- 说明：`codex-eval/` 保留原项目全部补丁、UI 与测试，仅修复补丁换行、增加可移植构建参数与 GitHub Actions。该子目录按其原许可证分发，不适用根项目的 MIT 许可。
+- 说明：`codex-eval/` 保留原项目全部补丁、UI 与测试，仅修复补丁换行、增加可移植的本地构建参数。该子目录按其原许可证分发，不适用根项目的 MIT 许可。
 
