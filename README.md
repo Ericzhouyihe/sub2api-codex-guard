@@ -3,7 +3,7 @@
 本仓库包含两套交付：
 
 1. **根目录：官方 `.s2plugin` 插件（稳定轻量版）**——可上传到 Sub2API「插件管理」，更新 Sub2API 后不会消失；受官方能力白名单限制，只能检测 **OpenAI OAuth** 账号。
-2. **`codex-eval/`：`Nanboom233/codex-candy-eval` 的完整 fork（全功能版）**——保留多供应商（OpenAI / Anthropic / Gemini / Antigravity）、账户评估侧栏、自动巡检、模型控制、优先级和通知；通过安装器替换容器内 `/app/sub2api` 二进制。它已适配到 **Sub2API v0.2.21**，使用本地构建，不依赖 GitHub Actions 或云端 CI。
+2. **`codex-eval/`：`Nanboom233/codex-candy-eval` 的完整 fork（全功能版）**——保留多供应商（OpenAI / Anthropic / Gemini / Antigravity）、账户评估侧栏、自动巡检、模型控制、优先级和通知；通过安装器替换容器内 `/app/sub2api` 二进制。它已通过 **Sub2API v0.2.21** 的本地构建验证，使用本地构建，不依赖 GitHub Actions 或云端 CI；真实服务器安装仍需按 `docs/codex-eval-fork.md` 执行。
 
 已构建的 v0.2.21 Linux amd64 安装器：
 
