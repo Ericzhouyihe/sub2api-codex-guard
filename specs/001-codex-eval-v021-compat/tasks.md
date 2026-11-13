@@ -126,7 +126,7 @@
 - [x] T027 [P] Update `README.md`, `codex-eval/README.md`, and `docs/codex-eval-fork.md` with final compatibility table, artifact hashes, known limitations, and explicit "no GitHub Actions required" statement
 - [x] T028 [P] Verify license compliance in `LICENSE`, `codex-eval/LICENSE`, `THIRD_PARTY_NOTICES.md`, and `codex-eval/licenses/`; ensure no private keys or credentials are tracked
 - [x] T029 Run [quickstart.md](quickstart.md) end-to-end on a clean machine and fix any discrepancy in `codex-eval/scripts/build.py` or documentation
-- [ ] T030 Create final git commit and annotated tag, run `git status --short` to confirm no build artifacts/secrets are tracked, and produce a release checklist in `docs/codex-eval-fork.md`
+- [x] T030 Create final git commit and annotated tag, run `git status --short` to confirm no build artifacts/secrets are tracked, and produce a release checklist in `docs/codex-eval-fork.md`
 
 ---
 
