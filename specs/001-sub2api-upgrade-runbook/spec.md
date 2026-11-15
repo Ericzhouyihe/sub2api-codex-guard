@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Implemented (2.21.5 upgrade complete)
 
 **Input**: User description: "现在又有2.21.5的版本了,能不能帮我更新一下,并且我在本项目安装了speckit的skill,能不能用对应的skill保留更新的相关流程,方便以后的所有更新"
 
