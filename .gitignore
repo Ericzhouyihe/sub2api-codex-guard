@@ -141,6 +141,7 @@ deploy/docker-compose.override.yml
 vite.config.js
 user-traffic-pending/
 docs/*
+!docs/UPGRADING.md
 !docs/model-guard.md
 !docs/ai-ops-codex.md
 !docs/reauth-identity-validation.md
