@@ -85,6 +85,8 @@ docker compose -f docker-compose.local.yml \
 
 > 本仓库目前没有发布预构建镜像，`docker-compose.model-guard.yml` 会在服务器本地构建当前源码。构建完成后，后续启动不需要再加 `--build`。
 
+> **Docker 部署不要点页面上的“立即更新”。** 该按钮是二进制自更新，会尝试替换容器内的 `/app/sub2api`；容器内通常没有权限，重建容器后更新也会丢失，还可能把 Model Guard 版本替换成上游版本。请按 [升级 Runbook](docs/UPGRADING.md) 合并上游 tag、重建镜像并切换。
+
 ### 已有 Sub2API 升级
 
 不要直接覆盖正在运行的数据目录。先备份 `data/`、PostgreSQL 和 `.env`，再按 [升级 Runbook](docs/UPGRADING.md) 做 canary 验证后切换生产镜像。升级流程包含备份、独立数据库 canary、健康检查、路由检查和回滚步骤。
