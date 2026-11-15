@@ -16,9 +16,11 @@
 | `SERVER` | 生产服务器 | `186.241.68.238` |
 | `DOMAIN` | 公网域名 | `https://oxapi.dpdns.org` |
 | `DEPLOY_DIR` | 生产 compose 目录 | `/root/sub2api-deploy` |
+| `NETWORK` | 生产 compose 的 Docker 网络 | `sub2api-deploy_sub2api-network` |
 | `SOURCE_DIR` | 服务器源码目录 | `/root/sub2api-mg-src-2.21.5` |
 | `BACKUP_DIR` | 本次备份目录 | `/root/backups/model-guard-2.21.5-<时间戳>` |
 | `CANARY_DB` | canary 数据库 | `sub2api_canary_215` |
+| `CANARY_SUFFIX` | canary 容器/目录后缀 | `215` |
 | `CANARY_PORT` | canary 宿主端口 | `18082` |
 
 > 不要把 SSH 密码、JWT、数据库密码写入仓库。命令中的 `$JWT`、`$POSTGRES_PASSWORD` 等由当前 shell 环境提供。
@@ -48,9 +50,18 @@ import json
 p='/root/sub2api-deploy/data/codex-eval/history.json'
 try:
     d=json.load(open(p))
-    print('history_records=', len(d) if isinstance(d,list) else len(d.get('records',[])))
+    results=d.get('results',{}) if isinstance(d,dict) else {}
+    fingerprints=d.get('fingerprints',{}) if isinstance(d,dict) else {}
+    candy_accounts=len(results) if isinstance(results,dict) else 0
+    candy_records=sum(len(v) for v in results.values() if isinstance(v,list)) if isinstance(results,dict) else 0
+    fingerprint_records=sum(len(v) for v in fingerprints.values() if isinstance(v,list)) if isinstance(fingerprints,dict) else 0
+    print('candy_accounts=',candy_accounts)
+    print('candy_records=',candy_records)
+    print('fingerprint_records=',fingerprint_records)
 except FileNotFoundError:
-    print('history_records=0 (no file)')
+    print('candy_accounts=0')
+    print('candy_records=0')
+    print('fingerprint_records=0')
 PY
 ```
 
@@ -163,9 +174,9 @@ docker exec -i sub2api-postgres dropdb -U sub2api --if-exists "$CANARY_DB"
 docker exec -i sub2api-postgres createdb -U sub2api "$CANARY_DB"
 docker exec -i sub2api-postgres pg_restore -U sub2api -d "$CANARY_DB" --no-owner --no-privileges < "$BACKUP_DIR/db-sub2api.dump"
 
-rm -rf /root/sub2api-canary-$NEW_VERSION
-mkdir -p /root/sub2api-canary-$NEW_VERSION
-cp -a "$DEPLOY_DIR/data" /root/sub2api-canary-$NEW_VERSION/data
+rm -rf /root/sub2api-canary-$CANARY_SUFFIX
+mkdir -p /root/sub2api-canary-$CANARY_SUFFIX
+cp -a "$DEPLOY_DIR/data" /root/sub2api-canary-$CANARY_SUFFIX/data
 
 # 禁止 canary 自动巡检，避免重复消耗上游额度
 docker exec -i sub2api-postgres psql -U sub2api -d "$CANARY_DB" -c \
@@ -177,25 +188,22 @@ docker exec -i sub2api-postgres psql -U sub2api -d "$CANARY_DB" -c \
 > `RUNTIME_ROLE=gateway` 不会注册 admin/Model Guard 路由（`backend/internal/server/router.go:128-144` 提前 return）。Canary 必须用 `full`，并保持巡检关闭。
 
 ```bash
-docker run -d --name sub2api-canary-$NEW_VERSION \
-  --network sub2api-network \
+# 先启动 canary Redis，避免应用启动时连接失败
+docker run -d --name sub2api-canary-redis-$CANARY_SUFFIX \
+  --network "$NETWORK" redis:8-alpine redis-server --appendonly yes
+
+docker run -d --name sub2api-canary-$CANARY_SUFFIX \
+  --network "$NETWORK" \
   -p 0.0.0.0:$CANARY_PORT:8080 \
   -e DATA_DIR=/app/data \
   -e DATABASE_HOST=sub2api-postgres -e DATABASE_PORT=5432 \
   -e DATABASE_USER=sub2api -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
   -e DATABASE_DBNAME="$CANARY_DB" -e DATABASE_SSLMODE=disable \
-  -e REDIS_HOST=sub2api-canary-redis-$NEW_VERSION -e REDIS_PORT=6379 \
+  -e REDIS_HOST=sub2api-canary-redis-$CANARY_SUFFIX -e REDIS_PORT=6379 \
   -e RUNTIME_ROLE=full \
   -e JWT_SECRET="$JWT_SECRET" -e TOTP_ENCRYPTION_KEY="$TOTP_ENCRYPTION_KEY" \
-  -v /root/sub2api-canary-$NEW_VERSION/data:/app/data \
+  -v /root/sub2api-canary-$CANARY_SUFFIX/data:/app/data \
   "$IMAGE_TAG"
-```
-
-Redis canary：
-
-```bash
-docker run -d --name sub2api-canary-redis-$NEW_VERSION \
-  --network sub2api-network redis:8-alpine redis-server --appendonly yes
 ```
 
 ### 7.3 自动检查
@@ -230,9 +238,9 @@ done
 无论通过与否，验证结束后立即删除，避免 full 角色后台任务和巡检消耗额度：
 
 ```bash
-docker rm -f sub2api-canary-$NEW_VERSION sub2api-canary-redis-$NEW_VERSION
+docker rm -f sub2api-canary-$CANARY_SUFFIX sub2api-canary-redis-$CANARY_SUFFIX
 docker exec -i sub2api-postgres dropdb -U sub2api --if-exists "$CANARY_DB"
-rm -rf /root/sub2api-canary-$NEW_VERSION
+rm -rf /root/sub2api-canary-$CANARY_SUFFIX
 ```
 
 ## 8. 生产切换
@@ -297,7 +305,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-在 `specs/001-sub2api-upgrade-runbook/tasks.md` 或独立升级记录中填写：
+在 `specs/001-sub2api-upgrade-runbook/tasks.md` 或独立升级记录中填写；本次 2.21.5 执行证据见 [`evidence-2.21.5.md`](../specs/001-sub2api-upgrade-runbook/evidence-2.21.5.md)。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -322,6 +330,8 @@ docker compose up -d sub2api
 | Canary 的 Model Guard API 404 | 使用了 `RUNTIME_ROLE=gateway` | 改 `full` 重启；gateway 不注册 admin 路由 |
 | 本机访问 canary 502 | 系统 HTTP 代理拦截 | 用 `curl --noproxy '*'`；不要用走代理的 `Invoke-RestMethod` |
 | 本机连接 18082 失败 | 容器只绑定 `127.0.0.1` | 重建为 `-p 0.0.0.0:18082:8080` |
+| Canary 应用启动失败/连不上 Redis | Redis 未先启动，或 `NETWORK` 写错 | 先启动 `sub2api-canary-redis-$CANARY_SUFFIX` 并等 `PONG`；`NETWORK` 用 `docker inspect sub2api` 的实际网络名（本机为 `sub2api-deploy_sub2api-network`） |
+| 基线 `history_records=0` 但页面有历史 | `history.json` 不是 `records` 数组 | 用 `results` / `fingerprints` 统计 `candy_accounts`、`candy_records`、`fingerprint_records` |
 | 升级后仍提示新版本 | 构建时 `VERSION` 带了后缀 | `VERSION` 用纯版本号，`-modelguard` 只放镜像 tag |
 | 巡检重复执行/额度异常 | Canary 未关闭巡检 | 启动前把 `codex_eval_inspection_enabled` 设为 `false`，验证后删除 canary |
 | 合并后页面入口消失 | 冲突时覆盖了 fork 文件 | 按 5.2 恢复 routes/sidebar/router，重跑测试 |
@@ -333,8 +343,17 @@ OLD_VERSION=2.21.4
 NEW_VERSION=2.21.5
 NEW_TAG=v2.21.5
 NEW_COMMIT=b9feadf7dd6228a4117e360821d9994b7cc54897
+MERGE_COMMIT=fac0046b4
+IMAGE_SOURCE_COMMIT=686e754c27565787ea17f7ebdca847c9dd7d63f3
 IMAGE_TAG=ghcr.io/ranxi2001/sub2api:2.21.5-modelguard
+IMAGE_ID=sha256:6ebbf6aa74431d44b4757b60b7e1ada33906fd50c681614d0d78215448870d8e
 SOURCE_DIR=/root/sub2api-mg-src-2.21.5
+BACKUP_DIR=/root/backups/model-guard-2.21.5-20261115-202743
+COMPOSE_BACKUP=/root/sub2api-deploy/docker-compose.yml.bak-2.21.5-20261115-204657
 CANARY_DB=sub2api_canary_215
+CANARY_SUFFIX=215
 CANARY_PORT=18082
+EVIDENCE=specs/001-sub2api-upgrade-runbook/evidence-2.21.5.md
 ```
+
+> `MERGE_COMMIT` 是上游版本与 fork 的功能合并点；`IMAGE_SOURCE_COMMIT` 是实际构建的 `HEAD`，可能还包含合并后的文档提交。两者都记录，便于审计与回滚。
