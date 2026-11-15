@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { bindDetailResponse } from './pelican-detail-identity.mjs'
+import { completeScheduledRounds } from './pelican-complete-rounds.mjs'
 
 const evidence = process.env.EVIDENCE_DIR || '/evidence'
 const upstreamOrigin = 'https://fake-upstream:4199'
@@ -140,10 +141,13 @@ function upstream() {
         id: `msg_fixture_${sequence}`, type: 'message', role: 'assistant', model,
         content: [], stop_reason: null, usage: { input_tokens: 40, output_tokens: 0 },
       } })
-      if (!refused) {
+      {
         const html = `<!doctype html><html><head><meta charset="utf-8"><title>${marker}</title></head><body><p>${marker}</p><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><circle cx="120" cy="200" r="40" fill="teal"/><circle cx="280" cy="200" r="40" fill="orange"/></svg></body></html>`
         event({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
-        event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: html } })
+        // A refusal may contain partial text. Its unique marker binds the real
+        // failed persisted output to this provider request, without treating it
+        // as a successful HTML answer or relying on arrival ordering.
+        event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: refused ? `${marker}: fixture refusal` : html } })
         event({ type: 'content_block_stop', index: 0 })
       }
       event({ type: 'message_delta', delta: refused
@@ -222,6 +226,8 @@ async function browser() {
           prompt_mode: input.prompt_mode, pelican_question: input.pelican_question })
       }
     })
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.goto(`${origin}/login?redirect=/admin/accounts`)
     await page.locator('#email').fill('reviewer@example.invalid')
     await page.locator('#password').fill('Fixture-Only-795-Password!')
@@ -252,6 +258,8 @@ async function browser() {
     assert.equal(state.requestFailures.length, 0, 'bootstrap transport must complete')
     state.pageErrors = []
     state.consoleErrors = []
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.reload()
     await page.getByRole('row').filter({ hasText: accounts[0].name }).waitFor()
     assert.ok(await page.locator('link[rel=stylesheet]').count(), 'real application CSS loaded')
@@ -370,6 +378,8 @@ async function browser() {
     state.scenarios.push({ name: stage, status: 'passed', question_repetition_permitted: true })
 
     stage = 'manual-localstorage-reload-history-dom'
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.reload()
     assert.deepEqual((await readRecords(accounts[0]))[0], aRecord)
     assert.deepEqual((await readRecords(accounts[1]))[0], bRecord)
@@ -390,6 +400,8 @@ async function browser() {
     await detail.getByRole('button', { name: 'Close', exact: true }).click()
     await panel.getByRole('button', { name: 'Close', exact: true }).click()
     await dialog().getByRole('button', { name: 'Close modal', exact: true }).click()
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.goto(`${origin}/admin/pelican-tests`)
     await page.getByTestId('pelican-tests-create').click()
     const editor = page.getByTestId('pelican-test-editor')
@@ -420,6 +432,8 @@ async function browser() {
       boundary: 'disabled creation only; no scheduled RunDue, /run or result acceptance claimed' })
 
     stage = 'account-scheduled-ui-create-a-b'
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.goto(`${origin}/admin/accounts`)
     const plans = []
     const planProjection = plan => ({ id: String(plan.id), account_id: String(plan.account_id),
@@ -460,7 +474,7 @@ async function browser() {
       to_char(next_run_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS next_run_at,
       running_until::text, last_run_at::text, running_until > now() AS lease_active
       FROM scheduled_test_plans WHERE id = ANY($1::bigint[]) ORDER BY id`
-    const resultSQL = `SELECT r.id::text, r.plan_id::text, p.account_id::text, r.status, r.pelican_config,
+    const resultSQL = `SELECT r.id::text, r.plan_id::text, p.account_id::text, r.status, r.error_message, r.pelican_config,
       substring(r.response_text from 'fixture795-[0-9]+') AS marker
       FROM scheduled_test_results r JOIN scheduled_test_plans p ON p.id = r.plan_id
       WHERE r.plan_id = ANY($1::bigint[]) ORDER BY r.id`
@@ -698,6 +712,8 @@ async function browser() {
     }
 
     stage = 'group-scheduled-ui-enable'
+    // Finish background metrics before deliberate document navigation; keep request failures strict.
+    await page.waitForLoadState('networkidle')
     await page.goto(`${origin}/admin/pelican-tests`)
     const groupPlanId = String(created.id)
     const groupId = groups[0].id
@@ -743,7 +759,7 @@ async function browser() {
       FROM pelican_group_test_plans p JOIN groups g ON g.id = p.group_id
       WHERE p.id = $1::bigint AND g.id = $2::bigint AND g.name = 'fixture-pelican-group'`
     const groupResultSQL = `SELECT r.id::text, r.plan_id::text, p.group_id::text,
-      r.account_id::text, r.account_name, r.status, r.pelican_config,
+      r.account_id::text, r.account_name, r.status, r.error_message, r.pelican_config,
       jsonb_array_length(r.attempts) AS attempt_count,
       substring(r.response_text from 'fixture795-[0-9]+') AS marker
       FROM pelican_group_test_results r JOIN pelican_group_test_plans p ON p.id = r.plan_id
@@ -885,7 +901,7 @@ async function browser() {
       assert.equal(list.items.length, 2)
       const groupAPIProjection = item => ({ id: String(item.id), plan_id: String(item.plan_id),
         group_id: String(item.group_id), account_id: String(item.account_id), account_name: item.account_name,
-        status: item.status, pelican_config: item.pelican_config, attempt_count: item.attempts.length })
+        status: item.status, error_message: item.error_message, pelican_config: item.pelican_config, attempt_count: item.attempts.length })
       const expectedAPIProjection = row => {
         const { marker, ...projection } = row
         return projection
@@ -934,6 +950,13 @@ async function browser() {
       }
     }
 
+    stage = 'complete-scheduled-rounds'
+    await completeScheduledRounds({ db, page, origin, accounts, groups, plans, groupPlanId, groupId, model,
+      dialog, openAccount, checkSnapshot, readPlans, readResults, readGroupPlan, readGroupResults,
+      fixtureControl, capturesNow, save, evidence, state })
+
+    assert.deepEqual(forbiddenRuns, [], 'all successor rounds must use real RunDue')
+    assert.equal(manualRequests.length, 4, 'successor rounds cannot be manual submissions')
     stage = 'post-bootstrap-browser-and-provider-error-lists'
     const finalCaptures = await (await fetch(`${upstreamOrigin}/__fixture/captures`)).json()
     assert.deepEqual(finalCaptures.rejected, [])
