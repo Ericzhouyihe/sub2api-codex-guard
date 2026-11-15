@@ -1,221 +1,165 @@
 <div align="center">
 
-<img src="assets/logo-icon.png" alt="Sub2API Logo" width="128" />
+<img src="assets/logo-icon.png" alt="Sub2API Logo" width="120" />
 
-# Sub2API
+# Sub2API · 模型哨兵
 
+**社区版 Sub2API + Model Guard**
+
+多账号 AI API 网关，保留 Sub2API 的账号、API Key、计费、调度和后台能力，并加入糖果测试、指纹检测、历史记录、定时巡检和降级模型控制。
+
+[![Version](https://img.shields.io/badge/version-2.21.5-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
 [![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8.svg)](https://golang.org/)
-[![Vue](https://img.shields.io/badge/Vue-3.4+-4FC08D.svg)](https://vuejs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791.svg)](https://www.postgresql.org/)
-[![Redis](https://img.shields.io/badge/Redis-7+-DC382D.svg)](https://redis.io/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 
-
-**tosky.io 维护的 Sub2API 独立分支**
-
-按需同步上游更新，扩展实用功能，独立发布生产版本。
-
-[平台](https://tosky.io/) · [使用文档](https://tosky.io/docs/) · [版本下载](https://github.com/ranxi2001/sub2api/releases) · [问题反馈](https://github.com/ranxi2001/sub2api/issues)
-
-中文 | [English](README_EN.md) | [日本語](README_JA.md)
+[快速部署](#快速部署) · [模型哨兵](#模型哨兵) · [社区版](#社区版) · [文档](#文档)
 
 </div>
 
-## 社区交流群
+## 这个仓库是什么
 
-欢迎正在部署、使用或维护 Sub2API 的朋友加入 QQ 群「中转技术交流」（群号 **1004036018**），交流部署实践、协议兼容、出口代理和功能改进。也欢迎参与问题复现、测试、文档补充和 Pull Request，一起维护这个独立分支。
+本仓库基于 **`ranxi2001/sub2api` 社区版**（tosky.io 维护的独立分支），并按需合入 **`Wei-Shaw/sub2api`** 上游更新。
 
-<table>
-<tr>
-<td align="center" width="50%">
-  <img src="assets/community/qq-relay-tech-group.png" alt="QQ 群：中转技术交流，群号 1004036018" width="71%" />
-  <br />
-  加入 QQ 群「中转技术交流」
-</td>
-<td align="center" width="50%">
-  <img src="assets/community/coffee-reward.png" alt="支付宝和微信赞赏码：如果帮到大家可以打赏咖啡" width="100%" />
-  <br />
-  如果帮到大家可以打赏咖啡！
-</td>
-</tr>
-</table>
+它在保留原版网关能力的同时，增加了 **Model Guard / 模型哨兵**：
 
-二维码长期有效。需要长期留档、报告问题或讨论具体改动时，请使用 [Issues](https://github.com/ranxi2001/sub2api/issues)。
+- **糖果测试**：向账号发送固定问题，记录回答、用量、耗时和是否正确。
+- **指纹检测**：用固定参考库和随机挑战做统计归因，给出候选模型排名。
+- **历史记录**：按分组和账号聚合，糖果与指纹记录持久化保存。
+- **定时巡检**：按分组、账号类型、订阅、可用性和通配符筛选，随机等待后逐账户检测。
+- **自动处置**：可调整账号优先级，或把指定模型加入账号级独立限制列表；恢复正常后自动解除。
+- **通知**：支持 ntfy 和 Bark。
 
-## 快速开始
+> 本仓库是独立仓库，不是通过 GitHub Fork 按钮创建的，所以仓库页不会显示 fork 标识；代码血缘见上方说明。
 
-新人部署、官方版替换、Excel / BPS 配置和质量运维步骤，请阅读[新人入门文档](docs/新人入门.md)。
+## 界面
 
-账号检测、失败处置和自动恢复，请阅读[质量运维](docs/account-quality-operations.md)；BPS OAuth 登录、工具兼容和 403 恢复配置，请阅读[Excel / BPS 协议](docs/excel-bps.md)。
+![模型哨兵巡检与模型控制](docs/images/model-guard-settings.png)
 
-2.19.2 新增默认关闭的账号性能监控，支持指标阈值和独立暂停；启用、人工解除与区域传播边界见[账号性能监控](docs/account-performance-monitor.md)。
+巡检 / 设置页包含自动巡检、降级优先级和模型控制。模型控制写入的是账号 `extra` 中的独立限制层，不会改写上游的 `credentials` 或 `model_mapping`。
 
-本功能分支新增「模型哨兵」：糖果测试、指纹检测、持久化历史和定时巡检，可选自动禁用/恢复指定模型及调整优先级，自动控制默认关闭。配置、检测局限与独立限制层说明见[模型哨兵](docs/model-guard.md)。
+## 快速部署
 
-已经托管账号或完成部署，想在 Codex 中使用？请阅读[新人入门：使用 Sub2API 接入 Codex](docs/新人入门-使用Sub2API.md)，按步骤创建 API Key、配置 Cockpit Tools 并验证调用。
+### 环境要求
 
+- Linux 服务器，Docker 24+ 与 Docker Compose v2
+- 建议 2 核 4 GB 内存以上；前端在容器内构建，首次约 10–15 分钟
+- 一个可用的 PostgreSQL 和 Redis 由 Compose 自动启动，无需单独安装
 
-## 本仓库的维护方向
+### Docker Compose 一键构建
 
-本仓库是 `ranxi2001/sub2api` 的独立生产 fork，基于 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) 按需同步。应用功能、上游修复、Release 和生产验证都以 `production` 分支为准；不会用上游默认分支或 tag 直接覆盖本 fork 的生产历史。
+```bash
+git clone https://github.com/Ericzhouyihe/sub2api-codex-guard.git
+cd sub2api-codex-guard/deploy
 
-- **DeepSeek 与 Codex 适配**：支持 Responses 到 Chat Completions 的转换、工具调用历史和上下文压缩兼容。配置模型映射后，可通过切换 API Key 分组使用 DeepSeek，沿用客户端配置。[操作教程](https://tosky.io/docs/?doc=deepseek-switch-group)
-- **账号质量运维**：维护定时答题检测、判题记录、失败处置和自动恢复，支持按模型隔离及全部检测模型失败时移出指定分组。检测结果以实际回答和判题证据为准，不以票据形态判断质量。
-- **Mihomo 出口管理**：维护订阅、动态代理、节点状态和账号业务出口；支持从订阅节点或动态代理单条、批量添加为静态代理，再给账号分别选择固定节点。[操作说明](docs/mihomo-static-node-proxies.md)
-- **Excel / Basispoints**：维护模型级 BPS 路由、内嵌图片 HTTPS 中转、磁盘和并发保护、结构化输出校验，以及工具历史和 transport 恢复。路由遵循账号与模型配置；不支持的托管工具可按策略回退原生 Codex，或保持 BPS 并省略工具，具体边界见 [BPS 配置说明](docs/excel-bps.md)。
-- **上游修复维护**：持续跟踪上游 Codex、Responses、工具调用、密文恢复和限流修复；先确认与本 fork 的行为差异，再按提交级别移植并补充回归测试。
+cp .env.example .env
+# 编辑 .env，至少设置：
+#   POSTGRES_PASSWORD=一个强密码
+#   ADMIN_EMAIL=你的管理员邮箱
+#   ADMIN_PASSWORD=你的管理员密码
+#   JWT_SECRET=$(openssl rand -hex 32)
+#   TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
 
-已有代理任务报 `unsupported_encrypted_agent_message` 或 `encrypted_agent_recovery_*` 时，先保留任务及工具结果，按[加密代理任务续接与恢复边界](docs/openai-agent-continuation.md)核对实际通道和恢复条件。
-- **独立发布与升级**：使用 `ranxi2001/sub2api` 的 Release、安装资源和容器镜像。版本变更见 [更新说明](https://github.com/ranxi2001/sub2api/releases)；Release 成功不代表生产服务已经部署，线上状态需要单独验证。
+mkdir -p data postgres_data redis_data
 
-贡献代码时，请在独立分支中说明影响的请求路径、账号类型、配置默认值和兼容边界。涉及生产分支的修复应先进入原 PR head，通过 CI 后再合并；不要提交 Token、OAuth 导出、ticket、代理凭据或生产配置。
-
-## 项目概述
-
-Sub2API 是一个 AI API 网关平台，用于分发和管理 AI 产品订阅的 API 配额。用户通过平台生成的 API Key 调用上游 AI 服务，平台负责鉴权、计费、负载均衡和请求转发。
-
-## 核心功能
-
-- **多账号管理** - 支持多种上游账号类型（OAuth、API Key）
-- **API Key 分发** - 为用户生成和管理 API Key
-- **精确计费** - Token 级别的用量追踪和成本计算
-- **智能调度** - 智能账号选择，支持粘性会话
-- **并发控制** - 用户级、账号级和 API Key 级并发限制，支持可配置的 Key 等待队列
-- **速率限制** - 可配置的请求和 Token 速率限制
-- **内置支付系统** - 支持 EasyPay 易支付、支付宝官方、微信官方、Stripe，用户自助充值，无需独立部署支付服务（[配置指南](docs/PAYMENT_CN.md)）
-- **USDT / USDC 加密货币支付** - 内置 BEpusdt 引擎，无需外部网关 API 或 Token；支持钱包管理、故障补扫、多网络充值与订阅购买，保留外接网关模式和幂等入账（[配置指南](docs/BEPUSDT_PAYMENT.md)）
-- **管理后台** - Web 界面进行监控和管理
-- **外部系统集成** - 支持通过 iframe 嵌入外部系统（如工单等），扩展管理后台功能
-
-### OpenAI API Key 的 UltraFast 档位计费
-
-账号新增/编辑页提供默认关闭的 **UltraFast 档位计费** 开关。开启后，按该账号所有有价 token 模型的上游响应 `service_tier` 结算；`ultrafast` 使用标准单价×6，包含缓存读写，再应用有效账号/分组倍率。响应未返回档位时按请求档位回退，该开关不强制上游加速。
-
-客户端明确请求 `ultrafast` 且最终仍按该档位结算时，关闭此开关也按6倍收费。开关控制是否采用上游响应升档，不豁免客户端请求的 UltraFast 价格。配置字段、响应降档、长上下文和计费范围见 [UltraFast 账号计费说明](docs/openai-ultrafast-billing.md)。
-
-### Anthropic API Key 客户端模拟与计费
-
-创建或编辑 Anthropic API Key 账号时, 可开启 "模拟 Claude Code 客户端", 为要求 Claude Code 客户端的上游补齐缺失的请求头, system 身份句和会话信息. 原有 system 指令及缓存断点会保留, count_tokens 仅补请求头. 此选项与 "抹除 Claude Code 身份" 互斥, 同时存储为开启时以抹除身份为准. 身份句可能影响模型自述.
-
-管理员可单独选择 "按模型估算扣除身份句 token". 默认关闭, 按上游用量正常计费. 开启后, 仅在网关实际补入身份句时估算扣除约 14-24 个输入或缓存 token, 不修改返回客户端的 usage. 型号别名, 上游分词器和混合缓存会影响估算准确度; 需要按上游原始用量结算时, 保持此开关关闭.
-
-对应账号 extra 配置为 `anthropic_mimic_claude_code` 和 `anthropic_mimic_claude_code_deduct_tokens`, 均默认 `false`. 关闭模拟或开启抹除身份时, 页面同时清除估算扣减设置.
-
-### 首次初始化管理员
-
-全新自动安装时，`ADMIN_EMAIL` 和 `ADMIN_PASSWORD` 留空会生成随机登录邮箱和密码，可从首次启动日志中的 `Generated admin` 获取。显式指定时，邮箱必须符合登录格式，密码必须为 8–72 字节。已有管理员或已有用户的部署跳过创建与此项校验。详细配置见 [部署说明](deploy/README.md)。
-
-## API Key 并发等待队列
-
-当 API Key 设置了大于 `0` 的 `concurrency_limit` 时，达到上限后的新请求会在原连接上等待空闲槽位。默认值 `0` 不增加 Key 级并发限制。等待策略是全局配置，进程启动时读取：
-
-```yaml
-gateway:
-  api_key_queue:
-    max_waiting: 5
-    timeout_seconds: 30
+docker compose -f docker-compose.local.yml \
+               -f docker-compose.model-guard.yml \
+               up -d --build
 ```
 
-| 环境变量 | 默认值 | 说明 |
-|----------|--------|------|
-| `GATEWAY_API_KEY_QUEUE_MAX_WAITING` | `5` | 每个受限 Key 允许额外等待的请求数；`0` 关闭 Key 排队。 |
-| `GATEWAY_API_KEY_QUEUE_TIMEOUT_SECONDS` | `30` | 单个请求最长等待秒数，必须为正整数。 |
+查看启动日志：
 
-- 等待名额按 Key 独立计算，不保证 FIFO；`concurrency_limit: 0` 的 Key 不进入队列。
-- 队列用于 HTTP/SSE、OpenAI Responses WebSocket 每轮请求和 Live 创建的 Key 准入，与用户级、账号级等待限制独立。
-- 等待期间复核 Key、用户及当前请求的模型/能力权限。Key 换组、平台或计费模式变化返回可重试的 `503` / `API_KEY_GROUP_CHANGED`。WebSocket 鉴权/权限失败以 `1008` 关闭，容量或临时服务错误以 `1013` 关闭。
-- 关闭排队时达到上限返回 `429` / `gateway_concurrency_limit`；队列满返回 `429` / `api_key_queue_full`；等待超时返回 `429` / `api_key_queue_timeout`。
-- 两个配置值必须为整数；负数、小数、非法字符串或超出范围会阻止启动。即使关闭排队，超时也必须为正数。
-- 修改 Compose `.env` 后需要重建容器以更新环境变量。调大等待时间时，需要确认客户端及反向代理的首字节超时。
-- 升级自动应用 `237_add_api_key_concurrency_limit.sql`，旧 Key 默认为 `0`。回退二进制不会撤销数据库新增字段。
+```bash
+docker compose -f docker-compose.local.yml \
+               -f docker-compose.model-guard.yml \
+               logs -f sub2api
+```
 
-### 中转 API Key 的上游 429
+启动后访问：
 
-- OpenAI 平台普通 API Key 收到上游 429 时，使用管理端已有的“429 兜底冷却”设置（默认启用、5 秒），不再把透传的 ChatGPT/Codex 周窗口、`resets_at` 或使用率快照写成整个 Key 的配额状态。关闭该设置时不新增本地兜底冷却，上游错误仍按原有响应与故障转移逻辑处理。
-- OAuth / Setup Token 保留真实配额窗口；Ollama Cloud、国产供应商和 OpenCode Go 的已识别专用配额逻辑，以及池模式、自定义错误策略和显式临时停调规则，仍按原有优先级处理。
-- 管理端测试 API Key 时，不再用透传的 ChatGPT 429 重置时间更新 Key 的调度状态。升级不会自动清理此前已写入的长冷却；核实状态后可使用管理端恢复功能处理。
+- 管理后台：`http://服务器IP:8080`
+- 模型哨兵：`http://服务器IP:8080/admin/codex-eval`
+- 健康检查：`http://服务器IP:8080/health`
 
-## 技术栈
+如果 `.env` 中没有设置管理员账号，首次启动日志会出现 `Generated admin`，其中包含随机生成的登录信息。生产环境建议显式设置 `ADMIN_EMAIL` 和 `ADMIN_PASSWORD`。
 
-| 组件 | 技术 |
+> 本仓库目前没有发布预构建镜像，`docker-compose.model-guard.yml` 会在服务器本地构建当前源码。构建完成后，后续启动不需要再加 `--build`。
+
+### 已有 Sub2API 升级
+
+不要直接覆盖正在运行的数据目录。先备份 `data/`、PostgreSQL 和 `.env`，再按 [升级 Runbook](docs/UPGRADING.md) 做 canary 验证后切换生产镜像。升级流程包含备份、独立数据库 canary、健康检查、路由检查和回滚步骤。
+
+## 模型哨兵
+
+### 糖果测试
+
+在「糖果」页选择分组、账号、模型、推理强度和每账户次数，然后开始测试。结果会显示回答、输入/输出 token、耗时、尝试次数和是否正确。
+
+默认判断是回答中是否出现独立数字 **21**，这是一个轻量启发式，不是模型身份证明。测试会消耗真实上游额度。
+
+### 指纹检测
+
+「指纹」页使用固定参考库和随机挑战，对回答做统计归因，输出候选模型排名和原始样本。它适合观察账号实际可能路由到的模型，不应当作为单一封禁依据。
+
+### 历史记录
+
+历史按账号和检测类型聚合，默认保留每个账户每种类型最近 20 条记录，并持久化到应用数据目录的 `codex-eval/history.json`。清空记录前请确认不再需要审计证据。
+
+### 定时巡检
+
+在「巡检 / 设置」中开启自动巡检，配置：
+
+- 分组、模型、推理强度和检查方式（糖果 / 指纹）
+- 每账户最多测试次数
+- 最短 / 最长随机等待时间（默认 15–35 分钟）
+- 包含 / 排除账户通配符
+- ntfy / Bark 通知
+
+巡检调度是进程内的，没有分布式主选举。**只在一个管理实例上开启自动巡检**，避免同一账号被重复检测和重复扣费。
+
+### 降级模型控制
+
+模型控制解决的是“账号被判定降级后，不再把某些模型调度到该账号”：
+
+- 只把指定的精确模型 ID 写入该账号的独立限制列表，不改写上游模型映射。
+- 调度时请求模型及其映射目标都会被检查；别名或通配符指向同一上游模型时也会被拦截。
+- 恢复正常后，只清除本功能写入的限制，不影响质量隔离、冷却、白名单或人工停用。
+- 关闭「模型控制」只会停止新增限制，不会立即清除已有列表。
+- 与「降级优先级」不同：优先级把账号从 10 降到 99 但仍可调度；移除模型是这些模型对该账号直接不可调度。
+
+![降级移除模型列表](docs/images/model-control.png)
+
+推荐使用顺序：先手动跑糖果 / 指纹测试，确认账号和模型选择正确；再在小范围分组开启巡检；观察一段时间历史记录后，最后再开启优先级和模型控制。
+
+## 社区版
+
+本仓库的网关主体来自社区版 Sub2API：
+
+- 社区版仓库：<https://github.com/ranxi2001/sub2api>
+- 使用文档：<https://tosky.io/docs/>
+- 版本发布：<https://github.com/ranxi2001/sub2api/releases>
+- 上游官方：<https://github.com/Wei-Shaw/sub2api>
+- 交流群：QQ「中转技术交流」**1004036018**
+
+社区版保留了多账号管理、API Key 分发、Token 级计费、智能调度、并发控制、速率限制、内置支付、管理后台等能力。Model Guard 是在此基础上的独立功能分支。
+
+## 文档
+
+| 文档 | 内容 |
 |------|------|
-| 后端 | Go 1.27.4, Gin, Ent |
-| 前端 | Vue 3.4+, Vite 5+, TailwindCSS |
-| 数据库 | PostgreSQL 15+ |
-| 缓存/队列 | Redis 6.0+ |
-| API 协议 | OpenAI Responses / Chat Completions、Anthropic Messages、Gemini、SSE、WebSocket |
-| 调度与可靠性 | 粘性会话、并发控制、限流、故障转移、模型隔离与冷却 |
-| 观测与运维 | 结构化日志、请求分段耗时、健康检查、Mihomo 出口与 systemd |
-| 交付与质量 | Docker Compose、GitHub Actions、Go 单元测试、前端类型检查与构建 |
+| [模型哨兵说明](docs/model-guard.md) | 功能边界、配置、检测局限、存储和部署注意事项 |
+| [升级 Runbook](docs/UPGRADING.md) | 上游版本合并、测试、备份、canary、生产切换和回滚 |
+| [部署说明](deploy/README.md) | Docker Compose、二进制、Kubernetes 等完整部署方式 |
+| [升级规格](specs/001-sub2api-upgrade-runbook/spec.md) | 本仓库的可复用升级流程和验收标准 |
+| [上游文档](https://github.com/Wei-Shaw/sub2api) | Sub2API 官方功能与配置说明 |
 
-## 贡献与协作
+## 安全与边界
 
-欢迎围绕协议兼容、账号调度、质量运维、支付计费、管理后台和运维观测提交改进。高质量贡献应尽量保持边界清晰，并在 PR 中说明请求路径、状态变化、兼容性影响和验证证据。
-
-开始前请阅读 [贡献指南](CONTRIBUTING.md)：包含最小复现、日志脱敏、开发环境、验证命令和 PR 流程。[提交 Issue](https://github.com/ranxi2001/sub2api/issues/new/choose) 时可选择 Bug、功能建议、文档或使用问题表单；提交 PR 时按模板填写行为变化和实际验证结果。
-
-建议按以下方式提交：
-
-- **协议与网关**：补充请求/响应样例，覆盖流式终止、工具调用、重试和上游错误映射。
-- **调度与账号**：说明候选筛选、粘性状态、并发占用、冷却窗口和故障转移行为，避免改变幂等语义。
-- **后台与配置**：同步前后端类型、默认值、权限边界和迁移兼容性。
-- **运维与部署**：提供离线或 mock 验证，不在 PR 中写入 Token、ticket、代理凭据或生产配置。
-- **验证与审查**：列出实际运行的测试、构建或脚本检查；未运行的检查不要标记为通过。
-
-感谢已合并 PR 的贡献者（按本仓库已合并 PR 数量降序排列，数量相同时按 GitHub 用户名排序）：
-
-<p>
-  <a href="https://github.com/ranxi2001"><img src="https://avatars.githubusercontent.com/u/77790009?v=4" width="56" height="56" alt="Onefly" title="Onefly" /></a>
-  <a href="https://github.com/akihitohyh"><img src="https://avatars.githubusercontent.com/u/79531840?v=4" width="56" height="56" alt="akihitohyh" title="akihitohyh" /></a>
-  <a href="https://github.com/blackdm666"><img src="https://avatars.githubusercontent.com/u/67053678?v=4" width="56" height="56" alt="老黑" title="老黑" /></a>
-  <a href="https://github.com/psyche314"><img src="https://avatars.githubusercontent.com/u/180074435?v=4" width="56" height="56" alt="psyche314" title="psyche314" /></a>
-  <a href="https://github.com/akayedi"><img src="https://avatars.githubusercontent.com/u/90334896?v=4" width="56" height="56" alt="akayedi" title="akayedi" /></a>
-  <a href="https://github.com/loserzero-7"><img src="https://avatars.githubusercontent.com/u/177290228?v=4" width="56" height="56" alt="loserzero-7" title="loserzero-7" /></a>
-  <a href="https://github.com/289989142"><img src="https://avatars.githubusercontent.com/u/63082228?v=4" width="56" height="56" alt="289989142" title="289989142" /></a>
-  <a href="https://github.com/AI8888-SHOP"><img src="https://avatars.githubusercontent.com/u/297756662?v=4" width="56" height="56" alt="AI8888-SHOP" title="AI8888-SHOP" /></a>
-  <a href="https://github.com/damian2848"><img src="https://avatars.githubusercontent.com/u/55676325?v=4" width="56" height="56" alt="damian2848" title="damian2848" /></a>
-  <a href="https://github.com/Cd1s"><img src="https://avatars.githubusercontent.com/u/135119404?v=4" width="56" height="56" alt="Cd1s" title="Cd1s" /></a>
-  <a href="https://github.com/danvilig"><img src="https://avatars.githubusercontent.com/u/230506945?v=4" width="56" height="56" alt="danvilig" title="danvilig" /></a>
-  <a href="https://github.com/EdmundMad0309"><img src="https://avatars.githubusercontent.com/u/122854730?v=4" width="56" height="56" alt="EdmundMad0309" title="EdmundMad0309" /></a>
-  <a href="https://github.com/LeeSssong"><img src="https://avatars.githubusercontent.com/u/37948462?v=4" width="56" height="56" alt="LeeSssong" title="LeeSssong" /></a>
-  <a href="https://github.com/QQQHHHDDD"><img src="https://avatars.githubusercontent.com/u/51820811?v=4" width="56" height="56" alt="QQQHHHDDD" title="QQQHHHDDD" /></a>
-  <a href="https://github.com/spake404"><img src="https://avatars.githubusercontent.com/u/123435269?v=4" width="56" height="56" alt="spake404" title="spake404" /></a>
-  <a href="https://github.com/stl25"><img src="https://avatars.githubusercontent.com/u/317681732?v=4" width="56" height="56" alt="stl25" title="stl25" /></a>
-  <a href="https://github.com/wuwu131452011"><img src="https://avatars.githubusercontent.com/u/165636850?v=4" width="56" height="56" alt="wuwu131452011" title="wuwu131452011" /></a>
-  <a href="https://github.com/abcgoodwei"><img src="https://avatars.githubusercontent.com/u/35887090?v=4" width="56" height="56" alt="abcgoodwei" title="abcgoodwei" /></a>
-  <a href="https://github.com/alanbulan"><img src="https://avatars.githubusercontent.com/u/140389107?v=4" width="56" height="56" alt="alanbulan" title="alanbulan" /></a>
-  <a href="https://github.com/ambi-vip"><img src="https://avatars.githubusercontent.com/u/46626203?v=4" width="56" height="56" alt="ambi-vip" title="ambi-vip" /></a>
-  <a href="https://github.com/ape-ming"><img src="https://avatars.githubusercontent.com/u/30568607?v=4" width="56" height="56" alt="ape-ming" title="ape-ming" /></a>
-  <a href="https://github.com/BeterXie"><img src="https://avatars.githubusercontent.com/u/30471270?v=4" width="56" height="56" alt="BeterXie" title="BeterXie" /></a>
-  <a href="https://github.com/buluw"><img src="https://avatars.githubusercontent.com/u/45087912?v=4" width="56" height="56" alt="buluw" title="buluw" /></a>
-  <a href="https://github.com/Coke165"><img src="https://avatars.githubusercontent.com/u/259744923?v=4" width="56" height="56" alt="Coke165" title="Coke165" /></a>
-  <a href="https://github.com/Even1997"><img src="https://avatars.githubusercontent.com/u/95899304?v=4" width="56" height="56" alt="Even1997" title="Even1997" /></a>
-  <a href="https://github.com/InCerryGit"><img src="https://avatars.githubusercontent.com/u/36690780?v=4" width="56" height="56" alt="InCerryGit" title="InCerryGit" /></a>
-  <a href="https://github.com/Lanyang1176"><img src="https://avatars.githubusercontent.com/u/187152708?v=4" width="56" height="56" alt="Lanyang1176" title="Lanyang1176" /></a>
-  <a href="https://github.com/Mickey0811"><img src="https://avatars.githubusercontent.com/u/49522921?v=4" width="56" height="56" alt="Mickey0811" title="Mickey0811" /></a>
-  <a href="https://github.com/mracry"><img src="https://avatars.githubusercontent.com/u/112537993?v=4" width="56" height="56" alt="mracry" title="mracry" /></a>
-  <a href="https://github.com/sylarchen1389"><img src="https://avatars.githubusercontent.com/u/43306063?v=4" width="56" height="56" alt="sylarchen1389" title="sylarchen1389" /></a>
-  <a href="https://github.com/Terry1321"><img src="https://avatars.githubusercontent.com/u/41000037?v=4" width="56" height="56" alt="Terry1321" title="Terry1321" /></a>
-  <a href="https://github.com/yuanyuan19"><img src="https://avatars.githubusercontent.com/u/120552623?v=4" width="56" height="56" alt="yuanyuan19" title="yuanyuan19" /></a>
-  <a href="https://github.com/ZASENJC"><img src="https://avatars.githubusercontent.com/u/65362072?v=4" width="56" height="56" alt="ZASENJC" title="ZASENJC" /></a>
-  <a href="https://github.com/zhoumooooo"><img src="https://avatars.githubusercontent.com/u/271002711?v=4" width="56" height="56" alt="zhoumooooo" title="zhoumooooo" /></a>
-</p>
-
----
-
-
-## ⚠️ 重要提醒
-
-使用本项目前，请务必仔细阅读以下内容：
-
-- **🚨 服务条款风险**：使用本项目可能违反 Anthropic 等上游服务商的服务条款。请在使用前仔细阅读相关服务商的用户协议，由此产生的一切风险由用户自行承担。
-- **⚖️ 合规使用**：请在符合您所在国家或地区法律法规的前提下使用本项目，严禁将其用于任何违法违规用途。
-- **📖 免责声明**：本项目仅供技术学习与研究使用，作者不对因使用本项目导致的账户封禁、服务中断、数据丢失或其他任何直接或间接损失承担责任。
-- **🚫 无商业授权**：本项目从未授权任何个人或组织基于本项目开展任何形式的商业化运营。任何以本项目名义或基于本项目从事的商业行为均与本项目及其开发者无关，由此产生的一切纠纷、损失和法律责任由行为主体自行承担。
-
-## OpenAI 图片输出格式
-
-OAuth / Setup Token 的 GPT Image 1.5、2、2.5、2.6 图片请求以映射后模型调用 Codex 原生端点；2.6 之前的模型保留端点 404/405 时回退 Responses，2.6 不回退。`output_format` / `output_compression` 透传不保证上游按指定格式输出：请求 JPEG/SVG 仍可能返回 4xx 或 HTTP 200、`output_format: "png"` 及 PNG 内容，包括已报告的 `gpt-image-2.5-flare` JPEG 请求。保存或交付前，应核对返回字段（含图片项字段）和真实图片格式，以实际格式设置扩展名和 MIME。成功响应保留状态、内容及 usage；格式不符仍可能计费，自动重试可能重复生成并计费。
+- 使用本项目可能违反上游服务商的服务条款；请在符合当地法律法规的前提下使用。
+- 检测和巡检会消耗真实上游额度，并可能触发上游风控；请先用小范围账号验证。
+- 糖果结果是指标，不是模型身份证明；指纹结果是统计归因，不是确定性证据。
+- 不要提交 Token、OAuth 导出、ticket、代理凭据或生产配置到仓库。
+- 本项目未授权任何个人或组织基于本项目开展商业化运营。
 
 ## 许可证
 
@@ -227,6 +171,6 @@ Copyright (c) 2026 Wesley Liddick
 
 <div align="center">
 
-**如果觉得有用，请给个 Star 支持一下！**
+**如果这个分支对你有帮助，欢迎给仓库一个 Star。**
 
 </div>

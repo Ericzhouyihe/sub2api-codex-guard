@@ -1,0 +1,22 @@
+# =============================================================================
+# Model Guard source-build override
+# =============================================================================
+# Use together with docker-compose.local.yml when you want to run this
+# repository's code (including Model Guard) instead of the upstream image:
+#
+#   docker compose -f docker-compose.local.yml \
+#                  -f docker-compose.model-guard.yml up -d --build
+#
+# The build takes roughly 10-15 minutes on a 2-4 vCPU machine because the
+# frontend is compiled inside Docker. The first start also runs migrations.
+# =============================================================================
+
+services:
+  sub2api:
+    image: sub2api-codex-guard:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${SUB2API_VERSION:-2.21.5}
+        COMMIT: ${SUB2API_COMMIT:-local}
