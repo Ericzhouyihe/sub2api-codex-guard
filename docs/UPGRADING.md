@@ -12,7 +12,7 @@
 | `NEW_VERSION` | 目标官方版本 | `2.21.5` |
 | `NEW_TAG` | 官方 Git tag | `v2.21.5` |
 | `NEW_COMMIT` | tag 指向的 commit | `b9feadf7dd6228a4117e360821d9994b7cc54897` |
-| `IMAGE_TAG` | 新镜像 tag | `ghcr.io/ranxi2001/sub2api:2.21.5-modelguard` |
+| `IMAGE_TAG` | 新镜像 tag | `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.21.5` |
 | `SERVER` | 生产服务器 | `186.241.68.238` |
 | `DOMAIN` | 公网域名 | `https://oxapi.dpdns.org` |
 | `DEPLOY_DIR` | 生产 compose 目录 | `/root/sub2api-deploy` |
@@ -248,7 +248,7 @@ rm -rf /root/sub2api-canary-$CANARY_SUFFIX
 ```bash
 cd "$DEPLOY_DIR"
 cp docker-compose.yml "docker-compose.yml.bak-$NEW_VERSION-$(date +%Y%m%d-%H%M%S)"
-sed -i "s#image: ghcr.io/ranxi2001/sub2api:.*#image: $IMAGE_TAG#" docker-compose.yml
+sed -i -E "s#image: ghcr.io/(ranxi2001/sub2api|ericzhouyihe/sub2api-codex-guard):.*#image: $IMAGE_TAG#" docker-compose.yml
 grep 'image:' docker-compose.yml
 docker compose up -d --pull never sub2api
 ```
@@ -286,7 +286,7 @@ docker logs --tail 200 sub2api | grep -Ei 'panic|fatal|error' || true
 
 ```bash
 cd "$DEPLOY_DIR"
-sed -i "s#image: ghcr.io/ranxi2001/sub2api:.*#image: ghcr.io/ranxi2001/sub2api:${OLD_VERSION}-modelguard#" docker-compose.yml
+sed -i -E "s#image: ghcr.io/(ranxi2001/sub2api|ericzhouyihe/sub2api-codex-guard):.*#image: ghcr.io/ericzhouyihe/sub2api-codex-guard:${OLD_VERSION}#" docker-compose.yml
 docker compose up -d --pull never sub2api
 curl -fsS http://127.0.0.1:8080/health
 ```

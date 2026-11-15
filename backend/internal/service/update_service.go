@@ -27,15 +27,16 @@ var (
 	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
 	ErrSystemRestartRequired     = infraerrors.Conflict("SYSTEM_RESTART_REQUIRED", "an update or rollback is already installed; restart the service before another update or rollback")
+	ErrDockerUpdateUnsupported   = infraerrors.Conflict("DOCKER_UPDATE_UNSUPPORTED", "docker deployments must update by pulling a new image; in-place binary updates are not persistent")
 )
 
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	// Releases are maintained on the owner-controlled production fork. Keep the
-	// updater independent from the upstream repository so production installs
-	// see our release stream and can update to our fork's assets.
-	githubRepo = "ranxi2001/sub2api"
+	// Releases are maintained on this fork. Keep the updater independent from
+	// the upstream repository so production installs see this fork's release
+	// stream and can update to its assets.
+	githubRepo = "Ericzhouyihe/sub2api-codex-guard"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -93,6 +94,20 @@ type UpdateInfo struct {
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
+	Deployment     string       `json:"deployment"` // "binary" or "docker"
+}
+
+// detectDeploymentMode reports how this process is running. Docker deployments
+// must be updated by pulling a new image; replacing the binary inside the
+// container is neither persistent nor safe.
+func detectDeploymentMode() string {
+	if mode := strings.TrimSpace(os.Getenv("SUB2API_DEPLOYMENT")); mode != "" {
+		return mode
+	}
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return "docker"
+	}
+	return "binary"
 }
 
 // ReleaseInfo contains GitHub release details
@@ -159,6 +174,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 			HasUpdate:      false,
 			Warning:        err.Error(),
 			BuildType:      s.buildType,
+			Deployment:     detectDeploymentMode(),
 		}, nil
 	}
 
@@ -170,6 +186,9 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
+	if detectDeploymentMode() == "docker" {
+		return ErrDockerUpdateUnsupported
+	}
 	if err := s.checkRestartRequired(); err != nil {
 		return err
 	}
@@ -311,6 +330,9 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 // Rollback restores the previous version
 func (s *UpdateService) Rollback() error {
+	if detectDeploymentMode() == "docker" {
+		return ErrDockerUpdateUnsupported
+	}
 	s.installMu.Lock()
 	defer s.installMu.Unlock()
 	if s.restartRequired {
@@ -364,6 +386,9 @@ func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVer
 // The target must be one of the versions returned by ListRollbackVersions;
 // anything else (including the current version) is rejected.
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	if detectDeploymentMode() == "docker" {
+		return ErrDockerUpdateUnsupported
+	}
 	if err := s.checkRestartRequired(); err != nil {
 		return err
 	}
@@ -468,8 +493,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:     false,
+		BuildType:  s.buildType,
+		Deployment: detectDeploymentMode(),
 	}, nil
 }
 
@@ -660,6 +686,7 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
 		BuildType:      s.buildType,
+		Deployment:     detectDeploymentMode(),
 	}, nil
 }
 

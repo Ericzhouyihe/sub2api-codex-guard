@@ -30,7 +30,7 @@
 - **自动处置**：可调整账号优先级，或把指定模型加入账号级独立限制列表；恢复正常后自动解除。
 - **通知**：支持 ntfy 和 Bark。
 
-> 本仓库是独立仓库，不是通过 GitHub Fork 按钮创建的，所以仓库页不会显示 fork 标识；代码血缘见上方说明。
+> 本仓库是 **`ranxi2001/sub2api` 的 GitHub Fork**，仓库页会显示 fork 标识；代码血缘和上游合并记录都保留在 Git 历史中。
 
 ## 界面
 
@@ -43,10 +43,12 @@
 ### 环境要求
 
 - Linux 服务器，Docker 24+ 与 Docker Compose v2
-- 建议 2 核 4 GB 内存以上；前端在容器内构建，首次约 10–15 分钟
-- 一个可用的 PostgreSQL 和 Redis 由 Compose 自动启动，无需单独安装
+- 建议 2 核 4 GB 内存以上
+- PostgreSQL 和 Redis 由 Compose 自动启动，无需单独安装
 
-### Docker Compose 一键构建
+### Docker Compose 一键部署（GHCR 预构建镜像）
+
+镜像由 GitHub Actions 在打 tag 时自动构建并推送，服务器只负责拉取，不需要在本地编译前端。
 
 ```bash
 git clone https://github.com/Ericzhouyihe/sub2api-codex-guard.git
@@ -62,17 +64,18 @@ cp .env.example .env
 
 mkdir -p data postgres_data redis_data
 
-docker compose -f docker-compose.local.yml \
-               -f docker-compose.model-guard.yml \
-               up -d --build
+# 如果 GHCR 包是私有的，先登录一次（PAT 需要 read:packages）：
+# echo "$CR_PAT" | docker login ghcr.io -u Ericzhouyihe --password-stdin
+
+docker compose -f docker-compose.local.yml up -d
 ```
+
+`docker-compose.local.yml` 已包含 Watchtower：它每 5 分钟检查一次新镜像，只更新带 `com.centurylinklabs.watchtower.enable=true` 标签的 `sub2api` 容器，不会动 PostgreSQL 和 Redis。
 
 查看启动日志：
 
 ```bash
-docker compose -f docker-compose.local.yml \
-               -f docker-compose.model-guard.yml \
-               logs -f sub2api
+docker compose -f docker-compose.local.yml logs -f sub2api
 ```
 
 启动后访问：
@@ -83,9 +86,31 @@ docker compose -f docker-compose.local.yml \
 
 如果 `.env` 中没有设置管理员账号，首次启动日志会出现 `Generated admin`，其中包含随机生成的登录信息。生产环境建议显式设置 `ADMIN_EMAIL` 和 `ADMIN_PASSWORD`。
 
-> 本仓库目前没有发布预构建镜像，`docker-compose.model-guard.yml` 会在服务器本地构建当前源码。构建完成后，后续启动不需要再加 `--build`。
+### 自动构建与更新
 
-> **Docker 部署不要点页面上的“立即更新”。** 该按钮是二进制自更新，会尝试替换容器内的 `/app/sub2api`；容器内通常没有权限，重建容器后更新也会丢失，还可能把 Model Guard 版本替换成上游版本。请按 [升级 Runbook](docs/UPGRADING.md) 合并上游 tag、重建镜像并切换。
+- 推送 `v*` tag（例如 `v2.21.5`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.21.5`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
+- 服务器上的 Watchtower 自动拉取 `:latest` 并重建 `sub2api`；也可以手动执行：
+  ```bash
+  docker compose -f docker-compose.local.yml pull sub2api
+  docker compose -f docker-compose.local.yml up -d sub2api
+  ```
+- 页面上的“立即更新”按钮在 Docker 模式下会隐藏，改为显示拉取镜像的提示；这是为了避免容器内替换二进制导致更新丢失。
+- 只想从源码构建时，叠加 `docker-compose.model-guard.yml`：
+  ```bash
+  docker compose -f docker-compose.local.yml \
+                 -f docker-compose.model-guard.yml \
+                 up -d --build
+  ```
+
+### GitHub Actions
+
+仓库只保留三条与本 fork 直接相关的 workflow：
+
+- `ci.yml`：运行 Model Guard 相关 Go 单测。
+- `docker-image.yml`：tag 或 `feat/model-guard` 分支推送时构建并推送 GHCR 镜像；tag 同时创建 GitHub Release。
+- `security-scan.yml`：每周及 push/PR 运行 `govulncheck` 和 `pnpm audit`。
+
+上游的一次性 PR/issue 回归 workflow 已移除，避免 fork 里出现大量永远不触发或必然失败的检查。
 
 ### 已有 Sub2API 升级
 

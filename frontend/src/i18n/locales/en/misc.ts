@@ -31,6 +31,8 @@ export default {
     refresh: 'Refresh',
     sourceMode: 'Source Build',
     sourceModeHint: 'Source build, use git pull to update',
+    dockerModeHint:
+      'Docker deployment: pull the new image and recreate the container with docker compose pull && docker compose up -d',
     updateNow: 'Update Now',
     updating: 'Updating...',
     updateComplete: 'Update Complete',
@@ -44,6 +46,8 @@ export default {
     rollbackConfirm: 'Roll back to {version}',
     rollbackWarning:
       'Rollback downloads the selected version and replaces the current binary. A service restart is required afterwards.',
+    dockerRollbackHint:
+      'For Docker, roll back with the image command below; replacing the binary inside the container is not persistent.',
     rollingBack: 'Rolling back...',
     rollbackComplete: 'Rollback Complete',
     rollbackFailed: 'Rollback Failed',

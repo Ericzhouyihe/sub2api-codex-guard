@@ -231,8 +231,11 @@
                 </button>
               </div>
 
-              <!-- Priority 3: Update available for source build - show git pull hint -->
-              <div v-else-if="hasUpdate && !isReleaseBuild" class="space-y-2">
+              <!-- Priority 3: Update available for source or Docker deployment - show deployment hint -->
+              <div
+                v-else-if="hasUpdate && (!isReleaseBuild || isDockerDeployment)"
+                class="space-y-2"
+              >
                 <a
                   v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
                   :href="releaseInfo.html_url"
@@ -268,12 +271,12 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </a>
-                <!-- Source build hint -->
+                <!-- Deployment-specific hint -->
                 <div
-                  class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2 dark:border-blue-800/50 dark:bg-blue-900/20"
+                  class="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2 dark:border-blue-800/50 dark:bg-blue-900/20"
                 >
                   <svg
-                    class="h-3.5 w-3.5 flex-shrink-0 text-blue-500 dark:text-blue-400"
+                    class="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-500 dark:text-blue-400"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -285,14 +288,21 @@
                       d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <p class="text-xs text-blue-600 dark:text-blue-400">
-                    {{ t('version.sourceModeHint') }}
+                  <p class="text-xs leading-4 text-blue-600 dark:text-blue-400">
+                    {{
+                      isDockerDeployment
+                        ? t('version.dockerModeHint')
+                        : t('version.sourceModeHint')
+                    }}
                   </p>
                 </div>
               </div>
 
-              <!-- Priority 4: Update available for release build - show update button -->
-              <div v-else-if="hasUpdate && isReleaseBuild" class="space-y-2">
+              <!-- Priority 4: Update available for binary release build - show update button -->
+              <div
+                v-else-if="hasUpdate && isReleaseBuild && !isDockerDeployment"
+                class="space-y-2"
+              >
                 <!-- Update info card -->
                 <div
                   class="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-900/20"
@@ -565,6 +575,7 @@
                             </div>
 
                             <p
+                              v-if="!isDockerDeployment"
                               class="flex items-start gap-1.5 px-0.5 text-[11px] leading-4 text-amber-600 dark:text-amber-400"
                             >
                               <Icon
@@ -577,6 +588,19 @@
                             </p>
 
                             <p
+                              v-else
+                              class="flex items-start gap-1.5 px-0.5 text-[11px] leading-4 text-blue-600 dark:text-blue-400"
+                            >
+                              <Icon
+                                name="infoCircle"
+                                size="xs"
+                                :stroke-width="2"
+                                class="mt-px flex-shrink-0"
+                              />
+                              {{ t('version.dockerRollbackHint') }}
+                            </p>
+
+                            <p
                               v-if="rollbackError"
                               class="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400"
                             >
@@ -584,6 +608,7 @@
                             </p>
 
                             <button
+                              v-if="!isDockerDeployment"
                               @click="handleRollback"
                               :disabled="rollingBack"
                               class="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -638,7 +663,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
@@ -651,9 +676,9 @@ import {
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
 
-const GITHUB_REPO = 'Wei-Shaw/sub2api'
-// Docker Hub image published by CI (tags carry no "v" prefix, e.g. weishaw/sub2api:0.1.146)
-const DOCKER_IMAGE = 'weishaw/sub2api'
+const GITHUB_REPO = 'Ericzhouyihe/sub2api-codex-guard'
+// GHCR image published by this fork's Docker workflow.
+const DOCKER_IMAGE = 'ghcr.io/ericzhouyihe/sub2api-codex-guard'
 
 const { t } = useI18n()
 
@@ -676,6 +701,7 @@ const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
+const deploymentMode = computed(() => appStore.deploymentMode)
 
 // Update process states (local to this component)
 const updating = ref(false)
@@ -730,6 +756,17 @@ const activeManualCommand = computed(() =>
 
 // Only show update check for release builds (binary/docker deployment)
 const isReleaseBuild = computed(() => buildType.value === 'release')
+// Docker must be updated by pulling a new image; in-place binary updates are not persistent.
+const isDockerDeployment = computed(() => deploymentMode.value === 'docker')
+
+// Docker rollbacks are image-tag changes, so default the manual command to Docker.
+watch(
+  isDockerDeployment,
+  (docker) => {
+    if (docker) manualTab.value = 'docker'
+  },
+  { immediate: true }
+)
 
 function toggleDropdown() {
   dropdownOpen.value = !dropdownOpen.value

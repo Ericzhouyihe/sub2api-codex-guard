@@ -47,13 +47,13 @@ npm install -g pnpm
 
 | Workflow | 触发条件 | 检查内容 |
 |----------|----------|----------|
-| **backend-ci.yml** | push, pull_request | 单元测试 + 集成测试 + golangci-lint v2.14.0 |
-| **security-scan.yml** | push, pull_request, 每周一 | govulncheck + gosec + pnpm audit |
-| **release.yml** | tag `v*` | 构建发布（PR 不触发） |
+| **ci.yml** | push, pull_request | Model Guard 相关 Go 单测 |
+| **security-scan.yml** | push, pull_request, 每周一 | govulncheck + pnpm audit |
+| **docker-image.yml** | tag `v*`、`feat/model-guard` 分支、手动 | 构建并推送 GHCR 镜像；tag 同时创建 Release |
 
 ### CI 要求
 
-- Go 版本必须是 **1.27.4**：四个 workflow 从当前 checkout 的 `backend/go.mod` 取版本，随后校验 `go version` 输出包含 `go1.27.4`。升级 Go 时要同时改 `backend/go.mod`、`backend-ci.yml`（两处）、`release.yml`、`security-scan.yml` 及 `issue765-image-scheduler.yml`（两处）里的版本断言，**以及三个 Dockerfile 里的 Go 构建镜像**（`Dockerfile` / `deploy/Dockerfile` 的 `ARG GOLANG_IMAGE`、`backend/Dockerfile` 的 `FROM golang:`）。前者漏了 CI 会在版本校验步骤直接失败；**后者漏了 CI 不会报，而是等到有人用这些 Dockerfile 构建时才失败**（`go.mod requires go >= X (running Y; GOTOOLCHAIN=local)`）。
+- Go 版本必须是 **1.27.4**：`ci.yml` 与 `security-scan.yml` 从当前 checkout 的 `backend/go.mod` 取版本，`security-scan.yml` 还会校验 `go version` 输出包含 `go1.27.4`。升级 Go 时要同时改 `backend/go.mod`、`security-scan.yml` 的版本断言，**以及三个 Dockerfile 里的 Go 构建镜像**（`Dockerfile` / `deploy/Dockerfile` 的 `ARG GOLANG_IMAGE`、`backend/Dockerfile` 的 `FROM golang:`）。前者漏了 CI 会在版本校验步骤直接失败；**后者漏了 CI 不会报，而是等到有人用这些 Dockerfile 构建时才失败**（`go.mod requires go >= X (running Y; GOTOOLCHAIN=local)`）。
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 
 ### 本地测试命令

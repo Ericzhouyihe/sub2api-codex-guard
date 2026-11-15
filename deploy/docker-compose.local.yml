@@ -24,9 +24,12 @@ services:
   # Sub2API Application
   # ===========================================================================
   sub2api:
-    image: ghcr.io/ranxi2001/sub2api:latest
+    image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest
+    pull_policy: always
     container_name: sub2api
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     security_opt:
       - no-new-privileges:true
     ulimits:
@@ -53,6 +56,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - SERVER_MODE=${SERVER_MODE:-release}
+      - SUB2API_DEPLOYMENT=docker
       # Pass through only when set; an empty value explicitly disables proxy trust.
       # Do not add an empty fallback: it would override persistent config.yaml.
       - SERVER_TRUSTED_PROXIES
@@ -296,6 +300,25 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # ===========================================================================
+  # Automatic image updates
+  # ===========================================================================
+  # Watchtower only updates containers with the label above. It never touches
+  # postgres/redis. Set WATCHTOWER_POLL_INTERVAL to change the 5-minute check.
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: sub2api-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-300}
+    networks:
+      - sub2api-network
 
 # =============================================================================
 # Networks

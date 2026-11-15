@@ -139,6 +139,10 @@ RUN addgroup -g 1000 sub2api && \
 # Set working directory
 WORKDIR /app
 
+# Docker images must be updated by pulling a new image, not by replacing the
+# binary in place. The API exposes this to the UI so it shows the pull hint.
+ENV SUB2API_DEPLOYMENT=docker
+
 # Copy binary/resources with ownership to avoid extra full-layer chown copy
 COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
 COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources

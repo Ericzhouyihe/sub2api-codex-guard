@@ -70,7 +70,23 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoUpdateAvailable))
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
-	require.Equal(t, "ranxi2001/sub2api", githubClient.latestRepo)
+	require.Equal(t, githubRepo, githubClient.latestRepo)
+}
+
+func TestUpdateServicePerformUpdateRejectsDockerDeployment(t *testing.T) {
+	t.Setenv("SUB2API_DEPLOYMENT", "docker")
+	githubClient := &updateServiceGitHubClientStub{}
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		githubClient,
+		"2.21.5",
+		"release",
+	)
+
+	err := svc.PerformUpdate(context.Background())
+
+	require.ErrorIs(t, err, ErrDockerUpdateUnsupported)
+	require.Empty(t, githubClient.latestRepo)
 }
 
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {
