@@ -27,6 +27,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out feat/model-guard
         uses: actions/checkout@v4
@@ -45,6 +46,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config rerere.enabled true
+
+      - name: Check pull request token
+        env:
+          UPSTREAM_SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        run: |
+          if [ -z "$UPSTREAM_SYNC_TOKEN" ]; then
+            echo "::error::UPSTREAM_SYNC_TOKEN is not configured. A PAT is required so the PR triggers normal CI workflows."
+            exit 1
+          fi
 
       - name: Merge upstream and verify Model Guard
         id: sync
@@ -66,7 +76,7 @@ jobs:
         if: steps.sync.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
           base: feat/model-guard
           branch: sync/upstream-${{ steps.sync.outputs.tag }}
           delete-branch: true
@@ -79,5 +89,6 @@ jobs:
             - Merge commit: `${{ steps.sync.outputs.merge_commit }}`
             - Model Guard integrity checks: passed
             - Focused Go tests: ${{ steps.sync.outputs.tests }}
+            - Server build: passed
 
             Review the diff and let the normal CI checks run before merging.

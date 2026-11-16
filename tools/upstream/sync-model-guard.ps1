@@ -24,10 +24,14 @@
     Upstream repository URL.
 
 .PARAMETER SkipTests
-    Skip the focused Go test run. Integrity checks still run.
+    Skip the focused Go test run. Integrity checks and the server build still run.
 
 .PARAMETER DryRun
     Resolve and print the sync plan without creating a branch or merging.
+
+.PARAMETER VerifyOnly
+    Verify the current working tree without fetching or merging. Use this after
+    resolving a merge conflict manually. Dirty tracked files are expected.
 #>
 [CmdletBinding()]
 param(
@@ -35,7 +39,8 @@ param(
     [string]$Branch = 'feat/model-guard',
     [string]$UpstreamUrl = 'https://github.com/ranxi2001/sub2api.git',
     [switch]$SkipTests,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$VerifyOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,6 +86,90 @@ function Get-LatestUpstreamTag {
     return $latest
 }
 
+function Assert-LocalOnlyIgnoreRules {
+    param([string]$RepoRoot)
+
+    $gitignore = Join-Path $RepoRoot '.gitignore'
+    if (-not (Test-Path $gitignore)) {
+        throw '.gitignore is missing; local-only paths would become committable.'
+    }
+
+    $requiredPatterns = @('/.local-run/', '/data/', '/.dsh/', '/.specify/', '*.env')
+    foreach ($pattern in $requiredPatterns) {
+        if (-not (Select-String -Path $gitignore -Pattern $pattern -SimpleMatch -Quiet)) {
+            throw "Local-only ignore rule is missing: $pattern"
+        }
+    }
+}
+
+function Assert-DiffCheck {
+    & git diff --check
+    if ($LASTEXITCODE -ne 0) {
+        throw 'git diff --check found whitespace errors or conflict markers in unstaged changes.'
+    }
+
+    & git diff --cached --check
+    if ($LASTEXITCODE -ne 0) {
+        throw 'git diff --cached --check found whitespace errors or conflict markers in staged changes.'
+    }
+}
+
+function Invoke-FocusedTests {
+    param([string]$RepoRoot)
+
+    Write-Host 'Running focused Model Guard tests...'
+    Push-Location (Join-Path $RepoRoot 'backend')
+    $oldGoMaxProcs = $env:GOMAXPROCS
+    try {
+        $env:GOMAXPROCS = '2'
+        & go test -p 1 -tags unit ./internal/codexeval ./internal/service ./internal/repository ./internal/handler/admin -run 'Test(Codex|ModelGuard|Fingerprint|HasStandalone)' -count=1
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Focused Model Guard tests failed.'
+        }
+    }
+    finally {
+        if ($null -eq $oldGoMaxProcs) {
+            Remove-Item Env:GOMAXPROCS -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:GOMAXPROCS = $oldGoMaxProcs
+        }
+        Pop-Location
+    }
+}
+
+function Invoke-ServerBuild {
+    param([string]$RepoRoot)
+
+    Write-Host 'Building the server binary (compile check)...'
+    Push-Location (Join-Path $RepoRoot 'backend')
+    $extension = if ($IsWindows) { '.exe' } else { '' }
+    $outputPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sub2api-server-" + [guid]::NewGuid().ToString('N') + $extension)
+    try {
+        & go build -p 1 -tags embed -trimpath -o $outputPath ./cmd/server
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Server build failed.'
+        }
+    }
+    finally {
+        Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
+        Pop-Location
+    }
+}
+
+function Test-MergeInProgress {
+    param([string]$RepoRoot)
+
+    $mergeHead = (& git rev-parse --git-path MERGE_HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+    if ([System.IO.Path]::IsPathRooted($mergeHead)) {
+        return Test-Path $mergeHead
+    }
+    return Test-Path (Join-Path $RepoRoot $mergeHead)
+}
+
 function Assert-ModelGuardPresent {
     param([string]$RepoRoot)
 
@@ -88,6 +177,10 @@ function Assert-ModelGuardPresent {
         'backend/internal/codexeval/candy.go',
         'backend/internal/codexeval/inspection.go',
         'backend/internal/handler/admin/model_guard_wiring_test.go',
+        'backend/internal/handler/admin/codex_inspection_handler.go',
+        'backend/internal/repository/codex_inspection_extra.go',
+        'backend/internal/service/codex_inspection_models.go',
+        'backend/internal/service/codex_inspection_settings.go',
         'frontend/src/views/admin/CodexEvalView.vue'
     )
     foreach ($relativePath in $requiredFiles) {
@@ -101,6 +194,11 @@ function Assert-ModelGuardPresent {
         @{ Path = 'backend/internal/server/router.go'; Text = 'InitializeCodexEval'; Label = 'router initialization' },
         @{ Path = 'backend/cmd/server/main.go'; Text = 'codexeval.StopInspection'; Label = 'shutdown hook' },
         @{ Path = 'backend/internal/web/embed_on.go'; Text = '/codex-eval'; Label = 'embedded frontend bypass' },
+        @{ Path = 'backend/internal/repository/account_repo.go'; Text = 'preserveCodexInspectionExtra'; Label = 'account extra preservation' },
+        @{ Path = 'backend/internal/repository/scheduler_cache.go'; Text = 'CodexInspectionBlockedModelsExtraKey'; Label = 'scheduler cache invalidation' },
+        @{ Path = 'backend/internal/service/account.go'; Text = 'codexInspectionModelBlocked'; Label = 'model admission gate' },
+        @{ Path = 'backend/internal/service/admin_account.go'; Text = 'CodexInspectionBlockedModelsExtraKey'; Label = 'account edit field preservation' },
+        @{ Path = 'backend/internal/service/openai_model_retirement.go'; Text = 'codexInspectionUpstreamModelBlocked'; Label = 'model retirement gate' },
         @{ Path = 'frontend/src/components/layout/AppSidebar.vue'; Text = '/admin/codex-eval'; Label = 'sidebar entry' },
         @{ Path = 'frontend/src/router/index.ts'; Text = 'AdminCodexEval'; Label = 'frontend route' }
     )
@@ -123,6 +221,21 @@ $currentBranch = (& git branch --show-current).Trim()
 Assert-GitSuccess 'branch --show-current'
 if ($currentBranch -ne $Branch) {
     throw "Expected branch '$Branch', but '$currentBranch' is checked out. Switch branches first."
+}
+
+if ($VerifyOnly) {
+    Write-Host 'Verify-only mode: checking the current working tree (no fetch, no merge).'
+    Assert-LocalOnlyIgnoreRules -RepoRoot $repoRoot
+    Assert-ModelGuardPresent -RepoRoot $repoRoot
+    Assert-DiffCheck
+    if (-not $SkipTests) {
+        Invoke-FocusedTests -RepoRoot $repoRoot
+    }
+    Invoke-ServerBuild -RepoRoot $repoRoot
+    Write-Host 'Verify-only checks passed.'
+    Add-GitHubOutput 'mode' 'verify-only'
+    Add-GitHubOutput 'tests' $(if ($SkipTests) { 'skipped' } else { 'passed' })
+    exit 0
 }
 
 $dirty = @(& git status --porcelain --untracked-files=no)
@@ -168,6 +281,7 @@ Assert-GitSuccess "fetch tag $Tag"
 $target = (& git rev-parse "${Tag}^{commit}").Trim()
 Assert-GitSuccess "rev-parse $Tag"
 
+Assert-LocalOnlyIgnoreRules -RepoRoot $repoRoot
 Assert-ModelGuardPresent -RepoRoot $repoRoot
 
 & git merge-base --is-ancestor $target HEAD *> $null
@@ -185,7 +299,7 @@ if ($ancestorExit -ne 1) {
 }
 
 if ($DryRun) {
-    Write-Host "Dry run: would create a backup branch, merge $Tag without committing, verify Model Guard and run focused tests."
+    Write-Host "Dry run: would create a backup branch, merge $Tag without committing, verify Model Guard, run focused tests and build the server binary."
     Add-GitHubOutput 'tag' $Tag
     Add-GitHubOutput 'version' $version.ToString()
     Add-GitHubOutput 'changed' 'unknown'
@@ -204,7 +318,7 @@ Write-Host "Backup branch: $backupBranch"
 $mergeExit = $LASTEXITCODE
 if ($mergeExit -ne 0) {
     $conflicts = @(& git diff --name-only --diff-filter=U)
-    if (Test-Path (Join-Path $repoRoot '.git/MERGE_HEAD')) {
+    if (Test-MergeInProgress -RepoRoot $repoRoot) {
         & git merge --abort
     }
     $conflictText = if ($conflicts.Count -gt 0) { $conflicts -join "`n" } else { '(no unmerged paths; inspect git output above)' }
@@ -212,32 +326,18 @@ if ($mergeExit -ne 0) {
 }
 
 try {
+    Assert-LocalOnlyIgnoreRules -RepoRoot $repoRoot
     Assert-ModelGuardPresent -RepoRoot $repoRoot
 
     if (-not $SkipTests) {
-        Write-Host 'Running focused Model Guard tests...'
-        Push-Location (Join-Path $repoRoot 'backend')
-        $oldGoMaxProcs = $env:GOMAXPROCS
-        try {
-            $env:GOMAXPROCS = '2'
-            & go test -p 1 -tags unit ./internal/codexeval ./internal/service ./internal/repository ./internal/handler/admin -run 'Test(Codex|ModelGuard|Fingerprint|HasStandalone)' -count=1
-            if ($LASTEXITCODE -ne 0) {
-                throw 'Focused Model Guard tests failed.'
-            }
-        } finally {
-            if ($null -eq $oldGoMaxProcs) {
-                Remove-Item Env:GOMAXPROCS -ErrorAction SilentlyContinue
-            } else {
-                $env:GOMAXPROCS = $oldGoMaxProcs
-            }
-            Pop-Location
-        }
+        Invoke-FocusedTests -RepoRoot $repoRoot
     }
+    Invoke-ServerBuild -RepoRoot $repoRoot
 
     & git commit -m "merge: upgrade to Sub2API $version"
     Assert-GitSuccess 'commit merge'
 } catch {
-    if (Test-Path (Join-Path $repoRoot '.git/MERGE_HEAD')) {
+    if (Test-MergeInProgress -RepoRoot $repoRoot) {
         & git merge --abort
     }
     throw

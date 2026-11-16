@@ -68,9 +68,8 @@ docker-compose.override.yml
 /data/
 # 本机 agent 配置与 speckit 技能文件。
 /.dsh/
-# speckit 工具链和 feature 规格是本地流程产物；需要长期保留的文档放 docs/。
+# speckit 工具链是本地安装状态；specs/ 下的规格、计划和任务会提交到 Git，供多设备协作。
 /.specify/
-/specs/
 
 # ===================
 # IDE / 编辑器
@@ -157,6 +156,7 @@ docs/*
 !docs/images/
 !docs/UPGRADING.md
 !docs/UPSTREAM_SYNC.md
+!docs/MULTI_DEVICE.md
 !docs/model-guard.md
 !docs/upgrades/
 !docs/upgrades/**
