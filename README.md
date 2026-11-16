@@ -13,6 +13,8 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 
+[简体中文](README.md) | [English](README_EN.md)
+
 [快速部署](#快速部署) · [模型哨兵](#模型哨兵) · [社区版](#社区版) · [文档](#文档)
 
 </div>
