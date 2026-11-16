@@ -1,0 +1,83 @@
+name: Upstream sync (Model Guard)
+
+on:
+  schedule:
+    # Daily at 02:17 UTC. The job only opens a pull request; it never deploys.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to sync (for example v2.21.6). Leave empty for the latest stable tag.'
+        required: false
+        type: string
+      skip_tests:
+        description: 'Skip focused Go tests (integrity checks still run).'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync-model-guard
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feat/model-guard
+        uses: actions/checkout@v4
+        with:
+          ref: feat/model-guard
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config rerere.enabled true
+
+      - name: Merge upstream and verify Model Guard
+        id: sync
+        shell: pwsh
+        env:
+          SYNC_TAG: ${{ github.event.inputs.tag }}
+          SYNC_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+        run: |
+          $arguments = @()
+          if (-not [string]::IsNullOrWhiteSpace($env:SYNC_TAG)) {
+            $arguments += @('-Tag', $env:SYNC_TAG)
+          }
+          if ($env:SYNC_SKIP_TESTS -eq 'true') {
+            $arguments += '-SkipTests'
+          }
+          ./tools/upstream/sync-model-guard.ps1 @arguments
+
+      - name: Open pull request
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: feat/model-guard
+          branch: sync/upstream-${{ steps.sync.outputs.tag }}
+          delete-branch: true
+          title: 'chore: sync upstream ${{ steps.sync.outputs.tag }}'
+          body: |
+            Automated merge of `ranxi2001/sub2api` tag `${{ steps.sync.outputs.tag }}` into `feat/model-guard`.
+
+            - Previous version: `${{ steps.sync.outputs.old_version }}`
+            - Target version: `${{ steps.sync.outputs.version }}`
+            - Merge commit: `${{ steps.sync.outputs.merge_commit }}`
+            - Model Guard integrity checks: passed
+            - Focused Go tests: ${{ steps.sync.outputs.tests }}
+
+            Review the diff and let the normal CI checks run before merging.

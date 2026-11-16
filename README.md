@@ -176,8 +176,8 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 |------|------|
 | [模型哨兵说明](docs/model-guard.md) | 功能边界、配置、检测局限、存储和部署注意事项 |
 | [升级 Runbook](docs/UPGRADING.md) | 上游版本合并、测试、备份、canary、生产切换和回滚 |
+| [上游同步](docs/UPSTREAM_SYNC.md) | 自动检测上游 tag、合并、完整性检查与 PR 流程 |
 | [部署说明](deploy/README.md) | Docker Compose、二进制、Kubernetes 等完整部署方式 |
-| [升级规格](specs/001-sub2api-upgrade-runbook/spec.md) | 本仓库的可复用升级流程和验收标准 |
 | [上游文档](https://github.com/Wei-Shaw/sub2api) | Sub2API 官方功能与配置说明 |
 
 ## 安全与边界

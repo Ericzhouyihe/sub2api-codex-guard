@@ -4,6 +4,19 @@
 
 第一次执行对象：**2.21.4 → 2.21.5**。以后升级只需要替换第 1 节的输入值。
 
+## 0. 本地环境变量
+
+本文档不记录真实服务器地址、域名、账号或密码。复制仓库根目录的 `.env.example` 为 `.env`（该文件已被 `.gitignore` 忽略），填写 `SERVER`、`DOMAIN`、`SSH_HOST`、`SSH_USER`、`SSH_PASS` 等变量。所有命令中的 `$SERVER`、`$DOMAIN` 等均从本地 `.env` 读取；生产数据库密码、JWT、TOTP 密钥只保存在服务器或本机 `.env`，不得写入仓库。
+
+PowerShell 可临时载入：
+
+```powershell
+Get-Content .env | Where-Object { $_ -match '^[^#].*=' } | ForEach-Object {
+  $k, $v = $_ -split '=', 2
+  Set-Item -Path "Env:$($k.Trim())" -Value $v.Trim()
+}
+```
+
 ## 1. 输入值
 
 | 变量 | 含义 | 2.21.5 示例 |
@@ -13,8 +26,8 @@
 | `NEW_TAG` | 官方 Git tag | `v2.21.5` |
 | `NEW_COMMIT` | tag 指向的 commit | `b9feadf7dd6228a4117e360821d9994b7cc54897` |
 | `IMAGE_TAG` | 新镜像 tag | `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.21.5` |
-| `SERVER` | 生产服务器 | `186.241.68.238` |
-| `DOMAIN` | 公网域名 | `https://oxapi.dpdns.org` |
+| `SERVER` | 生产服务器 | 从根目录 `.env` 读取 |
+| `DOMAIN` | 公网域名 | 从根目录 `.env` 读取 |
 | `DEPLOY_DIR` | 生产 compose 目录 | `/root/sub2api-deploy` |
 | `NETWORK` | 生产 compose 的 Docker 网络 | `sub2api-deploy_sub2api-network` |
 | `SOURCE_DIR` | 服务器源码目录 | `/root/sub2api-mg-src-2.21.5` |
@@ -305,7 +318,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-在 `specs/001-sub2api-upgrade-runbook/tasks.md` 或独立升级记录中填写；本次 2.21.5 执行证据见 [`evidence-2.21.5.md`](../specs/001-sub2api-upgrade-runbook/evidence-2.21.5.md)。
+本次 2.21.5 执行证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -353,7 +366,7 @@ COMPOSE_BACKUP=/root/sub2api-deploy/docker-compose.yml.bak-2.21.5-20261115-20465
 CANARY_DB=sub2api_canary_215
 CANARY_SUFFIX=215
 CANARY_PORT=18082
-EVIDENCE=specs/001-sub2api-upgrade-runbook/evidence-2.21.5.md
+EVIDENCE=docs/upgrades/2.21.5.md
 ```
 
 > `MERGE_COMMIT` 是上游版本与 fork 的功能合并点；`IMAGE_SOURCE_COMMIT` 是实际构建的 `HEAD`，可能还包含合并后的文档提交。两者都记录，便于审计与回滚。

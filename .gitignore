@@ -60,6 +60,19 @@ pnpm-debug.log*
 docker-compose.override.yml
 
 # ===================
+# 本机运维数据 / speckit 工作区（不入库）
+# ===================
+# 远程运维脚本、canary JWT、日志、构建产物和本地数据库副本都留在本机。
+/.local-run/
+# 本地运行数据与模型定价缓存（含账户/历史数据）。
+/data/
+# 本机 agent 配置与 speckit 技能文件。
+/.dsh/
+# speckit 工具链和 feature 规格是本地流程产物；需要长期保留的文档放 docs/。
+/.specify/
+/specs/
+
+# ===================
 # IDE / 编辑器
 # ===================
 .idea/
@@ -143,7 +156,10 @@ user-traffic-pending/
 docs/*
 !docs/images/
 !docs/UPGRADING.md
+!docs/UPSTREAM_SYNC.md
 !docs/model-guard.md
+!docs/upgrades/
+!docs/upgrades/**
 !docs/ai-ops-codex.md
 !docs/reauth-identity-validation.md
 !docs/openai-context-limit-errors.md
