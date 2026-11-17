@@ -51,6 +51,7 @@ func systemUpdateContext(ctx context.Context) (context.Context, context.CancelFu
 type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
 	PerformUpdate(ctx context.Context) error
+	DeploymentMode() string
 	Rollback() error
 	ListRollbackVersions(ctx context.Context) ([]service.RollbackVersion, error)
 	RollbackToVersion(ctx context.Context, version string) error
@@ -125,6 +126,15 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 			return nil, err
 		}
 		succeeded = true
+
+		if h.updateSvc.DeploymentMode() == "docker" {
+			return gin.H{
+				"message":      "Docker image update triggered. Watchtower will pull the image and recreate the service.",
+				"accepted":     true,
+				"need_restart": false,
+				"operation_id": lock.OperationID(),
+			}, nil
+		}
 
 		return gin.H{
 			"message":      "Update completed. Please restart the service.",

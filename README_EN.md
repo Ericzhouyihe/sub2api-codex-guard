@@ -72,7 +72,7 @@ mkdir -p data postgres_data redis_data
 docker compose -f docker-compose.local.yml up -d
 ```
 
-`docker-compose.local.yml` already includes Watchtower. It checks for a new image every 5 minutes and updates only the `sub2api` container labeled `com.centurylinklabs.watchtower.enable=true`; PostgreSQL and Redis are left untouched.
+`docker-compose.local.yml` already includes Watchtower. It checks for a new image every 5 minutes and updates only the `sub2api` container labeled `com.centurylinklabs.watchtower.enable=true`; PostgreSQL and Redis are left untouched. Set `WATCHTOWER_HTTP_API_TOKEN` and enable `WATCHTOWER_HTTP_API_UPDATE` to add an "Update Image Now" button to the admin version popover; it triggers the same image pull immediately.
 
 View the startup logs:
 
@@ -96,7 +96,8 @@ If no admin account is configured in `.env`, the first startup log will contain 
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
-- The "Update now" button on the page is hidden in Docker mode and replaced with a prompt to pull the image. This prevents updates from being lost when the binary is replaced inside the container.
+- Docker mode never replaces the binary inside the container: updates only happen by pulling the fork image. Without the Watchtower HTTP API the page shows the manual command; once configured it shows "Update Image Now", Watchtower pulls and recreates the container, and the page refreshes when the service is back.
+- The one-click path only updates images **published by this fork**. A new `ranxi2001/sub2api` upstream release still has to go through the upstream-sync PR, tag, and image build; installing the upstream binary directly would remove Model Guard.
 - To build from source only, add the `docker-compose.model-guard.yml` override:
   ```bash
   docker compose -f docker-compose.local.yml \

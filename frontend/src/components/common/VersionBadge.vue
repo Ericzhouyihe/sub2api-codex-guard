@@ -149,6 +149,44 @@
                 </button>
               </div>
 
+              <!-- Priority 1.5: Docker image update triggered -->
+              <div v-else-if="dockerUpdateTriggered" class="space-y-2">
+                <div
+                  class="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/50 dark:bg-blue-900/20"
+                >
+                  <svg
+                    class="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      {{ t('version.dockerUpdateTriggered') }}
+                    </p>
+                    <p class="text-xs text-blue-600/70 dark:text-blue-400/70">
+                      {{ t('version.dockerUpdateWaiting') }}
+                    </p>
+                  </div>
+                </div>
+                <p class="text-xs leading-4 text-gray-500 dark:text-dark-400">
+                  {{ t('version.dockerUpdateWatchHint') }}
+                </p>
+              </div>
+
               <!-- Priority 2: Update success - need restart -->
               <div v-else-if="updateSuccess && needRestart" class="space-y-2">
                 <div
@@ -231,6 +269,71 @@
                 </button>
               </div>
 
+              <!-- Priority 2.5: Docker image update available and Watchtower bridge configured -->
+              <div v-else-if="hasUpdate && canDockerUpdate" class="space-y-2">
+                <div
+                  class="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-900/20"
+                >
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50"
+                  >
+                    <Icon
+                      name="download"
+                      size="sm"
+                      :stroke-width="2"
+                      class="text-amber-600 dark:text-amber-400"
+                    />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      {{ t('version.updateAvailable') }}
+                    </p>
+                    <p class="text-xs text-amber-600/70 dark:text-amber-400/70">
+                      v{{ latestVersion }}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  @click="handleDockerUpdate"
+                  :disabled="updating"
+                  class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <svg v-if="updating" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <Icon v-else name="refresh" size="sm" :stroke-width="2" />
+                  {{ updating ? t('version.dockerUpdating') : t('version.dockerUpdateNow') }}
+                </button>
+
+                <p class="text-xs leading-4 text-blue-600 dark:text-blue-400">
+                  {{ t('version.dockerUpdateHint') }}
+                </p>
+
+                <a
+                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
+                  :href="releaseInfo.html_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center justify-center gap-1 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200"
+                >
+                  {{ t('version.viewChangelog') }}
+                  <Icon name="externalLink" size="xs" :stroke-width="2" />
+                </a>
+              </div>
+
               <!-- Priority 3: Update available for source or Docker deployment - show deployment hint -->
               <div
                 v-else-if="hasUpdate && (!isReleaseBuild || isDockerDeployment)"
@@ -296,6 +399,12 @@
                     }}
                   </p>
                 </div>
+                <p
+                  v-if="isDockerDeployment"
+                  class="px-0.5 text-[11px] leading-4 text-gray-500 dark:text-dark-400"
+                >
+                  {{ t('version.dockerModeConfigHint') }}
+                </p>
               </div>
 
               <!-- Priority 4: Update available for binary release build - show update button -->
@@ -702,6 +811,7 @@ const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
 const deploymentMode = computed(() => appStore.deploymentMode)
+const updateSupported = computed(() => appStore.updateSupported)
 
 // Update process states (local to this component)
 const updating = ref(false)
@@ -710,6 +820,8 @@ const needRestart = ref(false)
 const updateError = ref('')
 const updateSuccess = ref(false)
 const restartCountdown = ref(0)
+const dockerUpdateTriggered = ref(false)
+let dockerWatchTimer: ReturnType<typeof setInterval> | null = null
 // Distinguishes the success + restart panel between update and rollback flows
 const successKind = ref<'update' | 'rollback'>('update')
 
@@ -758,6 +870,7 @@ const activeManualCommand = computed(() =>
 const isReleaseBuild = computed(() => buildType.value === 'release')
 // Docker must be updated by pulling a new image; in-place binary updates are not persistent.
 const isDockerDeployment = computed(() => deploymentMode.value === 'docker')
+const canDockerUpdate = computed(() => isDockerDeployment.value && updateSupported.value)
 
 // Docker rollbacks are image-tag changes, so default the manual command to Docker.
 watch(
@@ -783,6 +896,8 @@ async function refreshVersion(force = true) {
   updateError.value = ''
   updateSuccess.value = false
   needRestart.value = false
+  dockerUpdateTriggered.value = false
+  stopDockerUpdateWatch()
   resetRollbackState()
 
   await appStore.fetchVersion(force)
@@ -808,6 +923,76 @@ async function handleUpdate() {
   } finally {
     updating.value = false
   }
+}
+
+async function handleDockerUpdate() {
+  if (updating.value) return
+
+  updating.value = true
+  updateError.value = ''
+  dockerUpdateTriggered.value = false
+
+  try {
+    const result = await performUpdate()
+    dockerUpdateTriggered.value = true
+    if (!result.accepted && result.need_restart) {
+      successKind.value = 'update'
+      updateSuccess.value = true
+      needRestart.value = true
+    }
+    appStore.clearVersionCache()
+    startDockerUpdateWatch()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    // Watchtower may recreate this container before the HTTP response arrives.
+    if (!err.response) {
+      dockerUpdateTriggered.value = true
+      appStore.clearVersionCache()
+      startDockerUpdateWatch()
+    } else {
+      updateError.value = err.response?.data?.message || err.message || t('version.updateFailed')
+    }
+  } finally {
+    updating.value = false
+  }
+}
+
+function stopDockerUpdateWatch() {
+  if (dockerWatchTimer) {
+    clearInterval(dockerWatchTimer)
+    dockerWatchTimer = null
+  }
+}
+
+function startDockerUpdateWatch() {
+  stopDockerUpdateWatch()
+  const startedAt = Date.now()
+  let sawDown = false
+
+  dockerWatchTimer = setInterval(async () => {
+    try {
+      const response = await fetch('/health', { method: 'GET', cache: 'no-store' })
+      if (!response.ok) {
+        sawDown = true
+        return
+      }
+      if (sawDown) {
+        stopDockerUpdateWatch()
+        window.location.reload()
+        return
+      }
+    } catch {
+      sawDown = true
+    }
+
+    // Some image pulls do not recreate the container (no new digest). Stop
+    // waiting after three minutes so the popover does not spin forever.
+    if (Date.now() - startedAt > 3 * 60 * 1000) {
+      stopDockerUpdateWatch()
+      dockerUpdateTriggered.value = false
+      await refreshVersion(true)
+    }
+  }, 3000)
 }
 
 function resetRollbackState() {
@@ -955,6 +1140,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopDockerUpdateWatch()
   document.removeEventListener('click', handleClickOutside)
 })
 </script>

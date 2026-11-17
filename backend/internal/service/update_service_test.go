@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -75,6 +77,8 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 
 func TestUpdateServicePerformUpdateRejectsDockerDeployment(t *testing.T) {
 	t.Setenv("SUB2API_DEPLOYMENT", "docker")
+	t.Setenv("WATCHTOWER_HTTP_API_URL", "")
+	t.Setenv("WATCHTOWER_HTTP_API_TOKEN", "")
 	githubClient := &updateServiceGitHubClientStub{}
 	svc := NewUpdateService(
 		&updateServiceCacheStub{},
@@ -87,6 +91,105 @@ func TestUpdateServicePerformUpdateRejectsDockerDeployment(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrDockerUpdateUnsupported)
 	require.Empty(t, githubClient.latestRepo)
+}
+
+func TestUpdateServiceCheckUpdateReportsDockerUpdateSupport(t *testing.T) {
+	t.Setenv("SUB2API_DEPLOYMENT", "docker")
+	t.Setenv("WATCHTOWER_HTTP_API_URL", "http://sub2api-watchtower:8080")
+	t.Setenv("WATCHTOWER_HTTP_API_TOKEN", "secret")
+	t.Setenv("WATCHTOWER_HTTP_API_UPDATE", "true")
+
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{release: &GitHubRelease{TagName: "v2.21.5"}},
+		"2.21.5",
+		"release",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.True(t, info.UpdateSupported)
+	require.Equal(t, "docker", info.Deployment)
+}
+
+func TestUpdateServiceCheckUpdateHidesDockerUpdateWhenBridgeDisabled(t *testing.T) {
+	t.Setenv("SUB2API_DEPLOYMENT", "docker")
+	t.Setenv("WATCHTOWER_HTTP_API_URL", "http://sub2api-watchtower:8080")
+	t.Setenv("WATCHTOWER_HTTP_API_TOKEN", "secret")
+	t.Setenv("WATCHTOWER_HTTP_API_UPDATE", "false")
+
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{release: &GitHubRelease{TagName: "v2.21.5"}},
+		"2.21.5",
+		"release",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.False(t, info.UpdateSupported)
+}
+
+func TestUpdateServiceTriggerWatchtowerUpdate(t *testing.T) {
+	var gotPath, gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		require.Equal(t, http.MethodPost, r.Method)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	svc := NewUpdateService(&updateServiceCacheStub{}, &updateServiceGitHubClientStub{}, "2.21.5", "release")
+	svc.dockerUpdateURL = server.URL
+	svc.dockerToken = "secret"
+
+	err := svc.triggerWatchtowerUpdate(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "/v1/update", gotPath)
+	require.Equal(t, "Bearer secret", gotAuth)
+}
+
+func TestUpdateServiceTriggerWatchtowerUpdateRejectsErrorStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	svc := NewUpdateService(&updateServiceCacheStub{}, &updateServiceGitHubClientStub{}, "2.21.5", "release")
+	svc.dockerUpdateURL = server.URL
+	svc.dockerToken = "secret"
+
+	err := svc.triggerWatchtowerUpdate(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "401")
+}
+
+func TestUpdateServicePerformUpdateDockerTriggersWatchtower(t *testing.T) {
+	called := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	t.Setenv("SUB2API_DEPLOYMENT", "docker")
+	t.Setenv("WATCHTOWER_HTTP_API_URL", server.URL)
+	t.Setenv("WATCHTOWER_HTTP_API_TOKEN", "secret")
+	t.Setenv("WATCHTOWER_HTTP_API_UPDATE", "true")
+
+	svc := NewUpdateService(&updateServiceCacheStub{}, &updateServiceGitHubClientStub{}, "2.21.5", "release")
+
+	require.NoError(t, svc.PerformUpdate(context.Background()))
+	select {
+	case <-called:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watchtower update was not triggered")
+	}
 }
 
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {

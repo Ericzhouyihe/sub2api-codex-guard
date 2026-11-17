@@ -20,6 +20,7 @@ export interface VersionInfo {
   warning?: string
   build_type: string // "source" for manual builds, "release" for CI builds
   deployment: string // "binary" or "docker"
+  update_supported?: boolean // true when this deployment can update from the page
 }
 
 /**
@@ -44,6 +45,7 @@ export async function checkUpdates(force = false): Promise<VersionInfo> {
 export interface UpdateResult {
   message: string
   need_restart: boolean
+  accepted?: boolean
 }
 
 export interface RollbackVersionInfo {

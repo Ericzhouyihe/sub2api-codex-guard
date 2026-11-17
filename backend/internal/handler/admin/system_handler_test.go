@@ -25,6 +25,7 @@ type systemHandlerUpdateServiceStub struct {
 	performCall           int
 	performCtxErr         error
 	performHasDeadline    bool
+	deployment            string
 	rollbackCall          int
 	rollbackToCall        int
 	rollbackToCtxErr      error
@@ -46,6 +47,10 @@ func (s *systemHandlerUpdateServiceStub) PerformUpdate(ctx context.Context) erro
 	s.performCtxErr = ctx.Err()
 	_, s.performHasDeadline = ctx.Deadline()
 	return s.performErr
+}
+
+func (s *systemHandlerUpdateServiceStub) DeploymentMode() string {
+	return s.deployment
 }
 
 func (s *systemHandlerUpdateServiceStub) Rollback() error {
@@ -72,6 +77,8 @@ type systemUpdateResponseEnvelope struct {
 	Data    struct {
 		Message         string `json:"message"`
 		AlreadyUpToDate bool   `json:"already_up_to_date"`
+		Accepted        bool   `json:"accepted"`
+		NeedRestart     bool   `json:"need_restart"`
 		CurrentVersion  string `json:"current_version"`
 		LatestVersion   string `json:"latest_version"`
 		OperationID     string `json:"operation_id"`
@@ -171,6 +178,28 @@ func TestSystemHandlerPerformUpdateFailureStillReturnsInternalError(t *testing.T
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, http.StatusInternalServerError, body.Code)
 	require.Equal(t, "internal error", body.Message)
+}
+
+func TestSystemHandlerPerformUpdateDockerReturnsAccepted(t *testing.T) {
+	updateSvc := &systemHandlerUpdateServiceStub{deployment: "docker"}
+	repo := newMemoryIdempotencyRepoStub()
+	router := newSystemHandlerTestRouter(t, updateSvc, repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/system/update", nil)
+	req.Header.Set("Idempotency-Key", "docker-image-update")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, updateSvc.performCall)
+	requireSystemLockStatus(t, repo, service.IdempotencyStatusSucceeded)
+
+	var body systemUpdateResponseEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, 0, body.Code)
+	require.True(t, body.Data.Accepted)
+	require.False(t, body.Data.NeedRestart)
+	require.NotEmpty(t, body.Data.OperationID)
 }
 
 // TestSystemHandlerPerformUpdateSurvivesClientDisconnect reproduces #4504:

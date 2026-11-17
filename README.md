@@ -72,7 +72,7 @@ mkdir -p data postgres_data redis_data
 docker compose -f docker-compose.local.yml up -d
 ```
 
-`docker-compose.local.yml` 已包含 Watchtower：它每 5 分钟检查一次新镜像，只更新带 `com.centurylinklabs.watchtower.enable=true` 标签的 `sub2api` 容器，不会动 PostgreSQL 和 Redis。
+`docker-compose.local.yml` 已包含 Watchtower：它每 5 分钟检查一次新镜像，只更新带 `com.centurylinklabs.watchtower.enable=true` 标签的 `sub2api` 容器，不会动 PostgreSQL 和 Redis。配置 `WATCHTOWER_HTTP_API_TOKEN` 并开启 `WATCHTOWER_HTTP_API_UPDATE` 后，后台版本浮层还会出现“立即更新镜像”按钮，立即触发同一套拉取流程。
 
 查看启动日志：
 
@@ -96,7 +96,8 @@ docker compose -f docker-compose.local.yml logs -f sub2api
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
-- 页面上的“立即更新”按钮在 Docker 模式下会隐藏，改为显示拉取镜像的提示；这是为了避免容器内替换二进制导致更新丢失。
+- Docker 模式不会在容器内替换二进制：更新只通过拉取 fork 镜像完成。未配置 Watchtower HTTP API 时页面显示手动命令；配置后显示“立即更新镜像”，由 Watchtower 拉取并重建容器，页面在服务恢复后自动刷新。
+- 一键更新只更新**本 fork 已发布**的镜像；ranxi2001/sub2api 的上游新版本仍需先通过上游同步 PR 合并、打 tag 并发布镜像，不能直接用上游二进制覆盖，否则模型哨兵会丢失。
 - 只想从源码构建时，叠加 `docker-compose.model-guard.yml`：
   ```bash
   docker compose -f docker-compose.local.yml \

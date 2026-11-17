@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,18 +22,26 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"go.uber.org/zap"
 )
 
 var (
 	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
 	ErrSystemRestartRequired     = infraerrors.Conflict("SYSTEM_RESTART_REQUIRED", "an update or rollback is already installed; restart the service before another update or rollback")
-	ErrDockerUpdateUnsupported   = infraerrors.Conflict("DOCKER_UPDATE_UNSUPPORTED", "docker deployments must update by pulling a new image; in-place binary updates are not persistent")
+	ErrDockerUpdateUnsupported   = infraerrors.Conflict("DOCKER_UPDATE_UNSUPPORTED", "docker deployments must update by pulling a new image; configure WATCHTOWER_HTTP_API_URL and WATCHTOWER_HTTP_API_TOKEN to trigger it from this page")
 )
 
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
+	// Watchtower runs the image pull asynchronously. The trigger is detached
+	// because Watchtower may recreate this container before the admin request
+	// finishes.
+	watchtowerUpdatePath     = "/v1/update"
+	watchtowerRequestTimeout = 5 * time.Minute
+	watchtowerTriggerDelay   = 500 * time.Millisecond
 	// Releases are maintained on this fork. Keep the updater independent from
 	// the upstream repository so production installs see this fork's release
 	// stream and can update to its assets.
@@ -73,15 +82,23 @@ type UpdateService struct {
 	buildType       string // "source" for manual builds, "release" for CI builds
 	installMu       sync.Mutex
 	restartRequired bool
+	dockerUpdateURL string
+	dockerToken     string
+	dockerUpdateOn  bool
+	httpClient      *http.Client
 }
 
 // NewUpdateService creates a new UpdateService
 func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, version, buildType string) *UpdateService {
 	return &UpdateService{
-		cache:          cache,
-		githubClient:   githubClient,
-		currentVersion: version,
-		buildType:      buildType,
+		cache:           cache,
+		githubClient:    githubClient,
+		currentVersion:  version,
+		buildType:       buildType,
+		dockerUpdateURL: normalizeWatchtowerURL(os.Getenv("WATCHTOWER_HTTP_API_URL")),
+		dockerToken:     strings.TrimSpace(os.Getenv("WATCHTOWER_HTTP_API_TOKEN")),
+		dockerUpdateOn:  strings.EqualFold(strings.TrimSpace(os.Getenv("WATCHTOWER_HTTP_API_UPDATE")), "true"),
+		httpClient:      &http.Client{Timeout: watchtowerRequestTimeout},
 	}
 }
 
@@ -95,6 +112,9 @@ type UpdateInfo struct {
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
 	Deployment     string       `json:"deployment"` // "binary" or "docker"
+	// UpdateSupported reports whether this deployment can apply the update from
+	// the admin page. Docker needs the optional Watchtower HTTP API bridge.
+	UpdateSupported bool `json:"update_supported"`
 }
 
 // detectDeploymentMode reports how this process is running. Docker deployments
@@ -108,6 +128,35 @@ func detectDeploymentMode() string {
 		return "docker"
 	}
 	return "binary"
+}
+
+// DeploymentMode reports how this process is running so the admin handler can
+// shape the update response without another GitHub lookup.
+func (s *UpdateService) DeploymentMode() string {
+	return detectDeploymentMode()
+}
+
+func normalizeWatchtowerURL(raw string) string {
+	raw = strings.TrimRight(strings.TrimSpace(raw), "/")
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return raw
+}
+
+func (s *UpdateService) dockerImageUpdateEnabled() bool {
+	return detectDeploymentMode() == "docker" && s.dockerUpdateOn && s.dockerUpdateURL != "" && s.dockerToken != ""
+}
+
+func (s *UpdateService) updateSupported() bool {
+	if detectDeploymentMode() == "docker" {
+		return s.dockerImageUpdateEnabled()
+	}
+	return s.buildType == "release"
 }
 
 // ReleaseInfo contains GitHub release details
@@ -156,6 +205,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 	// Try cache first
 	if !force {
 		if cached, err := s.getFromCache(ctx); err == nil && cached != nil {
+			cached.UpdateSupported = s.updateSupported()
 			return cached, nil
 		}
 	}
@@ -166,15 +216,17 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 		// Return cached on error
 		if cached, cacheErr := s.getFromCache(ctx); cacheErr == nil && cached != nil {
 			cached.Warning = "Using cached data: " + err.Error()
+			cached.UpdateSupported = s.updateSupported()
 			return cached, nil
 		}
 		return &UpdateInfo{
-			CurrentVersion: s.currentVersion,
-			LatestVersion:  s.currentVersion,
-			HasUpdate:      false,
-			Warning:        err.Error(),
-			BuildType:      s.buildType,
-			Deployment:     detectDeploymentMode(),
+			CurrentVersion:  s.currentVersion,
+			LatestVersion:   s.currentVersion,
+			HasUpdate:       false,
+			Warning:         err.Error(),
+			BuildType:       s.buildType,
+			Deployment:      detectDeploymentMode(),
+			UpdateSupported: s.updateSupported(),
 		}, nil
 	}
 
@@ -187,7 +239,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	if detectDeploymentMode() == "docker" {
-		return ErrDockerUpdateUnsupported
+		return s.performDockerImageUpdate(ctx)
 	}
 	if err := s.checkRestartRequired(); err != nil {
 		return err
@@ -203,6 +255,47 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	}
 
 	return s.applyReleaseAssets(ctx, info.ReleaseInfo.Assets)
+}
+
+// performDockerImageUpdate asks Watchtower to pull the configured image. The
+// trigger is detached because Watchtower recreates the sub2api container while
+// the request is still in flight; a short delay lets the admin API response
+// reach the browser first.
+func (s *UpdateService) performDockerImageUpdate(ctx context.Context) error {
+	if !s.dockerImageUpdateEnabled() {
+		return ErrDockerUpdateUnsupported
+	}
+	triggerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), watchtowerRequestTimeout)
+	go func() {
+		defer cancel()
+		time.Sleep(watchtowerTriggerDelay)
+		if err := s.triggerWatchtowerUpdate(triggerCtx); err != nil {
+			logger.L().Warn("docker_image_update_trigger_failed", zap.Error(err))
+			return
+		}
+		logger.L().Info("docker_image_update_triggered")
+	}()
+	return nil
+}
+
+func (s *UpdateService) triggerWatchtowerUpdate(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.dockerUpdateURL+watchtowerUpdatePath, nil)
+	if err != nil {
+		return fmt.Errorf("build watchtower request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+s.dockerToken)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("call watchtower: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("watchtower returned %s", resp.Status)
+	}
+	return nil
 }
 
 // Check before release lookups so pending restarts take precedence over network
@@ -493,9 +586,10 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:     false,
-		BuildType:  s.buildType,
-		Deployment: detectDeploymentMode(),
+		Cached:          false,
+		BuildType:       s.buildType,
+		Deployment:      detectDeploymentMode(),
+		UpdateSupported: s.updateSupported(),
 	}, nil
 }
 
@@ -680,13 +774,14 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	return &UpdateInfo{
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  cached.Latest,
-		HasUpdate:      compareVersions(s.currentVersion, cached.Latest) < 0,
-		ReleaseInfo:    cached.ReleaseInfo,
-		Cached:         true,
-		BuildType:      s.buildType,
-		Deployment:     detectDeploymentMode(),
+		CurrentVersion:  s.currentVersion,
+		LatestVersion:   cached.Latest,
+		HasUpdate:       compareVersions(s.currentVersion, cached.Latest) < 0,
+		ReleaseInfo:     cached.ReleaseInfo,
+		Cached:          true,
+		BuildType:       s.buildType,
+		Deployment:      detectDeploymentMode(),
+		UpdateSupported: s.updateSupported(),
 	}, nil
 }
 

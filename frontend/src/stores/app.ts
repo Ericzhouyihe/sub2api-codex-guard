@@ -43,6 +43,7 @@ export const useAppStore = defineStore('app', () => {
   const hasUpdate = ref<boolean>(false)
   const buildType = ref<string>('source')
   const deploymentMode = ref<string>('binary')
+  const updateSupported = ref<boolean>(false)
   const releaseInfo = ref<ReleaseInfo | null>(null)
 
   // Auto-incrementing ID for toasts
@@ -250,6 +251,7 @@ export const useAppStore = defineStore('app', () => {
         has_update: hasUpdate.value,
         build_type: buildType.value,
         deployment: deploymentMode.value,
+        update_supported: updateSupported.value,
         release_info: releaseInfo.value || undefined,
         cached: true
       }
@@ -268,6 +270,7 @@ export const useAppStore = defineStore('app', () => {
       hasUpdate.value = data.has_update
       buildType.value = data.build_type || 'source'
       deploymentMode.value = data.deployment || 'binary'
+      updateSupported.value = data.update_supported === true
       releaseInfo.value = data.release_info || null
       versionLoaded.value = true
       return data
@@ -471,6 +474,7 @@ export const useAppStore = defineStore('app', () => {
     hasUpdate,
     buildType,
     deploymentMode,
+    updateSupported,
     releaseInfo,
 
     // Computed
