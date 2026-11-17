@@ -32,15 +32,16 @@ export default {
     sourceMode: 'Source Build',
     sourceModeHint: 'Source build, use git pull to update',
     dockerModeHint:
-      'Docker deployment: pull the new image and recreate the container with docker compose pull && docker compose up -d',
+      'Docker deployments let Watchtower pull new images every 5 minutes; you can also run docker compose pull && docker compose up -d manually',
     dockerModeConfigHint:
-      'Set WATCHTOWER_HTTP_API_TOKEN and enable WATCHTOWER_HTTP_API_UPDATE to show the Update Image Now button.',
+      'Set WATCHTOWER_HTTP_API_TOKEN and enable WATCHTOWER_HTTP_API_UPDATE to show the Update Image Now button and trigger the same automatic update immediately.',
     updateNow: 'Update Now',
     dockerUpdateNow: 'Update Image Now',
     dockerUpdating: 'Triggering image update...',
     dockerUpdateTriggered: 'Image update triggered',
     dockerUpdateWaiting: 'Watchtower is pulling the image and recreating the container. Please wait…',
-    dockerUpdateHint: 'Watchtower pulls the latest image and recreates the container, usually in 30–90 seconds.',
+    dockerUpdateHint:
+      'Watchtower checks every 5 minutes; click to pull the latest image and recreate the container immediately (usually 30–90 seconds).',
     dockerUpdateWatchHint:
       'The page refreshes automatically when the service is back. If nothing changes, refresh manually.',
     updating: 'Updating...',
