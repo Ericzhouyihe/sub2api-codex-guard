@@ -91,13 +91,15 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 ### 自动构建与更新
 
 - 推送 `v*` tag（例如 `v2.21.5`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.21.5`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
+- 也可以只修改 `backend/cmd/server/VERSION` 并推送到 `feat/model-guard`：如果 `vX.Y.Z` tag 还不存在，workflow 会自动创建 tag 和 GitHub Release，并把同版本镜像和 `:latest` 推到 GHCR；服务器上的 Watchtower 会在下一次轮询（默认 5 分钟）自动拉取重建。版本号没变时只构建分支/`sha-*` 镜像，不会更新 `latest`。
 - 服务器上的 Watchtower 自动拉取 `:latest` 并重建 `sub2api`；也可以手动执行：
   ```bash
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
 - Docker 模式不会在容器内替换二进制：更新只通过拉取 fork 镜像完成。未配置 Watchtower HTTP API 时页面显示手动命令；配置后显示“立即更新镜像”，由 Watchtower 拉取并重建容器，页面在服务恢复后自动刷新。
-- 一键更新只更新**本 fork 已发布**的镜像；ranxi2001/sub2api 的上游新版本仍需先通过上游同步 PR 合并、打 tag 并发布镜像，不能直接用上游二进制覆盖，否则模型哨兵会丢失。
+- 一键更新只更新**本 fork 已发布**的镜像；ranxi2001/sub2api 的上游新版本仍需先通过上游同步 PR 合并。合并后 `VERSION` 会变为上游版本，workflow 自动创建对应 tag/Release 并发布镜像；不能直接用上游二进制覆盖，否则模型哨兵会丢失。
+- 服务器 compose 必须使用 `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest`，并保留 `sub2api` 的 `com.centurylinklabs.watchtower.enable=true` 标签和 `watchtower` 服务；使用固定版本 tag 的部署不会自动跟随新版本。
 - 只想从源码构建时，叠加 `docker-compose.model-guard.yml`：
   ```bash
   docker compose -f docker-compose.local.yml \
@@ -110,7 +112,7 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 仓库只保留三条与本 fork 直接相关的 workflow：
 
 - `ci.yml`：运行 Model Guard 相关 Go 单测。
-- `docker-image.yml`：tag 或 `feat/model-guard` 分支推送时构建并推送 GHCR 镜像；tag 同时创建 GitHub Release。
+- `docker-image.yml`：tag 或 `feat/model-guard` 分支推送时构建并推送 GHCR 镜像；`VERSION` 变化且对应 tag 不存在时自动创建 tag/Release 并更新 `:latest`。
 - `security-scan.yml`：每周及 push/PR 运行 `govulncheck` 和 `pnpm audit`。
 
 上游的一次性 PR/issue 回归 workflow 已移除，避免 fork 里出现大量永远不触发或必然失败的检查。

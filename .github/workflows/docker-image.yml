@@ -12,6 +12,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: docker-image-${{ github.repository }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -24,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,15 +41,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve version
-        id: version
+      - name: Resolve version and release state
+        id: release
         shell: bash
         run: |
+          set -euo pipefail
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            version="${GITHUB_REF_NAME#v}"
+            publish=true
           else
-            echo "value=edge-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            version="$(tr -d '[:space:]' < backend/cmd/server/VERSION)"
+            if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+              publish=false
+            else
+              publish=true
+            fi
           fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be X.Y.Z, got '$version'"
+            exit 1
+          fi
+          if [[ "$publish" == "true" ]]; then
+            build_version="$version"
+          else
+            build_version="edge-${GITHUB_SHA::7}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build_version=$build_version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=$version publish=$publish build_version=$build_version"
 
       - name: Extract image metadata
         id: meta
@@ -52,9 +78,9 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=match,pattern=v(.*),group=1
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.publish == 'true' }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.publish == 'true' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -66,14 +92,18 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.version.outputs.value }}
+            VERSION=${{ steps.release.outputs.build_version }}
             COMMIT=${{ github.sha }}
             NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.release.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.release.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ steps.release.outputs.version }}
           generate_release_notes: true
+          make_latest: true

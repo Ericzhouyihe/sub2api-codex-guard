@@ -128,9 +128,10 @@ pwsh ./tools/upstream/sync-model-guard.ps1 -VerifyOnly
 > （Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and
 > approve pull requests）。
 
-合并 PR 后按正常发布流程打 `vX.Y.Z` tag，`docker-image.yml` 会构建并推送 GHCR 镜像；生产
-切换仍按 `docs/UPGRADING.md` 的备份、canary、生产验证和回滚步骤执行。自动同步只负责代码，
-不会自动部署生产。
+合并 PR 后，`backend/cmd/server/VERSION` 已变为上游版本；`docker-image.yml` 会发现对应的
+`vX.Y.Z` tag 不存在，自动创建 tag/Release、构建并推送 GHCR 镜像（含 `:latest`）。生产
+compose 使用 `:latest` 且运行 Watchtower 时，服务器会在默认 5 分钟内自动拉取并重建；
+首次大版本或需要固定版本时，仍按 `docs/UPGRADING.md` 做备份、canary、生产验证和回滚。
 
 ## 6. 相关文件
 

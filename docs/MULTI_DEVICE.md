@@ -32,7 +32,7 @@
 - `feat/model-guard` 开启分支保护，禁止直接 push 和 force push。
 - 功能分支可以 rebase 自己的提交，但**不要 rebase 共享的 `feat/model-guard`**。
 - 同一时间只允许一个人处理上游同步 PR；其他设备等 PR 合并后 `git pull`。
-- 所有设备使用同一个 tag 命名规则：`vX.Y.Z`，由发布负责人在合并后的 `feat/model-guard` 上打。
+- 所有设备使用同一个 tag 命名规则：`vX.Y.Z`。默认由 `docker-image.yml` 在 `VERSION` 变化时自动创建；手动发布也必须使用同一规则。
 
 ## 3. 新设备首次配置
 
@@ -110,7 +110,7 @@ git pull --ff-only
    - 检查 Model Guard 接线和测试结果；
    - 通过正常 CI 后合并。
 4. 其他设备收到合并通知后 `git pull --ff-only`，不需要各自再跑一次上游合并。
-5. 发布负责人按 `docs/UPGRADING.md` 打 tag、构建镜像、canary、生产切换。
+5. 合并后 `docker-image.yml` 自动创建 tag/Release 并发布 `:latest`；生产使用 `:latest` + Watchtower 时自动切换。首次大版本或需要固定版本时，仍按 `docs/UPGRADING.md` 做 canary 和回滚准备。
 
 ### 5.2 手动路径（Action 失败或需要临时指定 tag）
 
@@ -147,10 +147,10 @@ git commit -m "merge: upgrade to Sub2API 2.21.6"
 ## 6. 发布与生产
 
 1. 合并后的 `feat/model-guard` 通过 CI。
-2. 发布负责人创建 `vX.Y.Z` tag 并 push。
-3. `docker-image.yml` 构建 GHCR 镜像。
-4. 按 `docs/UPGRADING.md` 做备份、canary、生产切换和回滚。
-5. 自动同步只负责代码，不会自动部署生产。
+2. `docker-image.yml` 读取 `backend/cmd/server/VERSION`：如果 `vX.Y.Z` tag 不存在，自动创建 tag 和 GitHub Release，构建并推送 `:X.Y.Z`、`:latest` 到 GHCR；版本号未变化时只构建分支和 `:sha-*` 镜像。
+3. 生产 compose 使用 `:latest` 且运行 Watchtower 时，服务器会在下一次轮询（默认 5 分钟）自动拉取并重建 `sub2api`；也可以在后台版本浮层点“立即更新镜像”。
+4. 需要固定版本的维护窗口仍可手动 push `vX.Y.Z` tag；首次升级或大版本切换按 `docs/UPGRADING.md` 做备份、canary、生产验证和回滚。
+5. 自动同步负责代码、镜像和生产容器更新；数据库迁移由应用启动时执行，回滚路径仍按升级 Runbook 保留。
 
 ## 7. 合并前检查清单
 

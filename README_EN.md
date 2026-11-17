@@ -91,13 +91,15 @@ If no admin account is configured in `.env`, the first startup log will contain 
 ### Automated Builds and Updates
 
 - Pushing a `v*` tag (for example `v2.21.5`) triggers `.github/workflows/docker-image.yml`, which builds `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.21.5`, `:latest` and `:sha-*`, and creates a GitHub Release with the same name.
+- You can also bump `backend/cmd/server/VERSION` and push to `feat/model-guard`: if the `vX.Y.Z` tag does not exist, the workflow creates the tag and GitHub Release automatically, then pushes the versioned image and `:latest` to GHCR. Watchtower on the server pulls and recreates the container on its next poll (5 minutes by default). Pushes without a version bump only build branch/`sha-*` images and do not move `latest`.
 - Watchtower on the server automatically pulls `:latest` and recreates `sub2api`. You can also do it manually:
   ```bash
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
 - Docker mode never replaces the binary inside the container: updates only happen by pulling the fork image. Without the Watchtower HTTP API the page shows the manual command; once configured it shows "Update Image Now", Watchtower pulls and recreates the container, and the page refreshes when the service is back.
-- The one-click path only updates images **published by this fork**. A new `ranxi2001/sub2api` upstream release still has to go through the upstream-sync PR, tag, and image build; installing the upstream binary directly would remove Model Guard.
+- The one-click path only updates images **published by this fork**. A new `ranxi2001/sub2api` upstream release still has to go through the upstream-sync PR first. After that merge, `VERSION` becomes the upstream version and the workflow creates the tag/Release and image automatically; installing the upstream binary directly would remove Model Guard.
+- The server compose file must use `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest` and keep the `sub2api` `com.centurylinklabs.watchtower.enable=true` label plus the `watchtower` service. A pinned version tag does not follow new releases automatically.
 - To build from source only, add the `docker-compose.model-guard.yml` override:
   ```bash
   docker compose -f docker-compose.local.yml \
@@ -110,7 +112,7 @@ If no admin account is configured in `.env`, the first startup log will contain 
 The repository keeps only three workflows directly related to this fork:
 
 - `ci.yml`: runs the Go unit tests related to Model Guard.
-- `docker-image.yml`: builds and pushes the GHCR image on a tag or on a push to the `feat/model-guard` branch; tags also create a GitHub Release.
+- `docker-image.yml`: builds and pushes the GHCR image on a tag or on a push to the `feat/model-guard` branch; when `VERSION` changes and its tag does not exist, it also creates the tag/Release and updates `:latest`.
 - `security-scan.yml`: runs `govulncheck` and `pnpm audit` weekly and on push/PR.
 
 The one-off upstream PR/issue regression workflows have been removed to avoid a large number of checks in the fork that never trigger or are bound to fail.
