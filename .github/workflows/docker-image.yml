@@ -51,7 +51,7 @@ jobs:
             publish=true
           else
             version="$(tr -d '[:space:]' < backend/cmd/server/VERSION)"
-            if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
               publish=false
             else
               publish=true
