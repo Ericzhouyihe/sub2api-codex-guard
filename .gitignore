@@ -160,6 +160,7 @@ docs/*
 !docs/model-guard.md
 !docs/upgrades/
 !docs/upgrades/**
+!docs/account-platform-edit.md
 !docs/openai-totp-factor-recovery.md
 !docs/ai-ops-codex.md
 !docs/reauth-identity-validation.md
