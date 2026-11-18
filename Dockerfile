@@ -76,7 +76,7 @@ COPY backend/third_party ./third_party
 # Cache mount keeps the module cache across builds so a transient CDN blip on
 # retry resumes instead of re-fetching every zip from scratch.
 RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
-    go mod download
+    sh -c 'go mod download || (sleep 5 && go mod download)'
 
 # Copy backend source first
 COPY backend/ ./

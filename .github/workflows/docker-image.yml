@@ -93,6 +93,8 @@ jobs:
             VERSION=${{ steps.release.outputs.build_version }}
             COMMIT=${{ github.sha }}
             NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+            GOPROXY=https://proxy.golang.org|https://goproxy.cn|direct
+            GOSUMDB=sum.golang.org
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
