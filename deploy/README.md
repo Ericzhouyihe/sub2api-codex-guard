@@ -265,7 +265,7 @@ rm -rf data/ postgres_data/ redis_data/
 `docker-compose.local.yml` also ships a `watchtower` service. It polls GHCR every 5 minutes
 and recreates only the labeled `sub2api` container, so a new `:latest` image is applied
 without running the pull commands manually. Keep the image on `:latest`; pinning
-`:2.21.x` disables this automatic path. See the project README for the version-bump
+`:2.22.x` disables this automatic path. See the project README for the version-bump
 release flow and the optional in-page “Update Image Now” trigger.
 
 For **named volumes version** (docker-compose.yml):

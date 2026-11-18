@@ -55,13 +55,13 @@ pwsh ./tools/upstream/sync-model-guard.ps1
 指定版本：
 
 ```powershell
-pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.21.6
+pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.22.0
 ```
 
 只检查、不合并：
 
 ```powershell
-pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.21.6 -DryRun
+pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.22.0 -DryRun
 ```
 
 > Windows 本机首次运行如果 Go 依赖下载超时，可先设置
@@ -139,7 +139,7 @@ compose 使用 `:latest` 且运行 Watchtower 时，服务器会在默认 5 分�
 - 工作流：[`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
 - 升级 Runbook：[`docs/UPGRADING.md`](UPGRADING.md)
 - 模型哨兵说明：[`docs/model-guard.md`](model-guard.md)
-- 本次升级证据：[`docs/upgrades/2.21.6.md`](upgrades/2.21.6.md)
+- 本次升级证据：[`docs/upgrades/2.22.0.md`](upgrades/2.22.0.md)
 
 ## 7. 安全边界
 

@@ -120,21 +120,21 @@ git pull --ff-only
 git switch feat/model-guard
 git pull --ff-only
 git status --short --untracked-files=no    # 必须为空
-pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.21.6
+pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.22.0
 ```
 
 如果脚本报告冲突，它会 `git merge --abort`，不会留下半合并工作区。此时按
 `docs/UPSTREAM_SYNC.md` 第 4 节处理：
 
 ```powershell
-git merge --no-ff --no-commit v2.21.6
+git merge --no-ff --no-commit v2.22.0
 # 手动解决冲突，保留上游新逻辑后再恢复 Model Guard 接线
 git add <resolved-files>
 pwsh ./tools/upstream/sync-model-guard.ps1 -VerifyOnly
-git commit -m "merge: upgrade to Sub2API 2.21.6"
+git commit -m "merge: upgrade to Sub2API 2.22.0"
 ```
 
-验证通过后 push 到 `sync/upstream-v2.21.6` 分支并开 PR，不要直接 push 到 `feat/model-guard`。
+验证通过后 push 到 `sync/upstream-v2.22.0` 分支并开 PR，不要直接 push 到 `feat/model-guard`。
 冲突处理期间其他设备不要同时改同一组接线文件。
 
 ### 5.3 设备之间的边界
