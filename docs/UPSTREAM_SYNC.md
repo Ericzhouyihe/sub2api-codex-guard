@@ -55,13 +55,13 @@ pwsh ./tools/upstream/sync-model-guard.ps1
 指定版本：
 
 ```powershell
-pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.22.0
+pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.23.1
 ```
 
 只检查、不合并：
 
 ```powershell
-pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.22.0 -DryRun
+pwsh ./tools/upstream/sync-model-guard.ps1 -Tag v2.23.1 -DryRun
 ```
 
 > Windows 本机首次运行如果 Go 依赖下载超时，可先设置
@@ -130,8 +130,9 @@ pwsh ./tools/upstream/sync-model-guard.ps1 -VerifyOnly
 
 合并 PR 后，`backend/cmd/server/VERSION` 已变为上游版本；`docker-image.yml` 会发现对应的
 `vX.Y.Z` tag 不存在，自动创建 tag/Release、构建并推送 GHCR 镜像（含 `:latest`）。生产
-compose 使用 `:latest` 且运行 Watchtower 时，服务器会在默认 5 分钟内自动拉取并重建；
-首次大版本或需要固定版本时，仍按 `docs/UPGRADING.md` 做备份、canary、生产验证和回滚。
+compose 使用 `:latest` 且运行 Watchtower 时，服务器不会自动轮询；管理员在后台看到新版本后
+点击「立即更新镜像」，由 Watchtower 拉取并重建。首次大版本或需要固定版本时，仍按
+`docs/UPGRADING.md` 做备份、canary、生产验证和回滚。
 
 ## 6. 相关文件
 
@@ -139,11 +140,13 @@ compose 使用 `:latest` 且运行 Watchtower 时，服务器会在默认 5 分�
 - 工作流：[`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
 - 升级 Runbook：[`docs/UPGRADING.md`](UPGRADING.md)
 - 模型哨兵说明：[`docs/model-guard.md`](model-guard.md)
-- 本次升级证据：[`docs/upgrades/2.22.0.md`](upgrades/2.22.0.md)
+- 本次升级证据：[`docs/upgrades/2.23.1.md`](upgrades/2.23.1.md)
 
 ## 7. 安全边界
 
 - 服务器地址、域名、SSH 账号和密码只放本地根目录 `.env`；`.env` 已被 `.gitignore` 忽略。
+- 发布链路只推送源码提交；不从开发机执行 SSH/SCP 上传，也不把服务器凭据放进仓库、Workflow 或规格文档。
+- 服务器更新只通过内置更新入口触发 Watchtower；Docker 模式不保留本地旧镜像或回退数据。
 - `.local-run/`、`data/`、`.dsh/`、`.specify/` 是本机目录，不进入 Git。
 - `specs/` 是项目规格、计划和任务，会提交到 Git；只能写脱敏后的流程和变量名，不能写入真实凭据。
 - 生产数据库密码、JWT、TOTP 密钥仍保存在服务器 `deploy/.env`，不要把服务器 `.env` 复制到仓库。

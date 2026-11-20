@@ -2,7 +2,7 @@
 
 本手册用于把本仓库的 `feat/model-guard` 分支升级到 `ranxi2001/sub2api` 的任意新版本，并在不影响现有用户、账户、巡检设置和历史记录的前提下完成生产切换。
 
-第一次执行对象：**2.21.4 → 2.21.5**。以后升级只需要替换第 1 节的输入值。
+第一次执行对象：**2.21.4 → 2.21.5**。从 2.21.6 起，日常发布优先使用内置更新通道（见 1.1）；本手册的备份、canary 和服务器手动切换步骤保留给首次大版本、数据库迁移或需要固定版本的场景。
 
 ## 0. 本地环境变量
 
@@ -37,6 +37,22 @@ Get-Content .env | Where-Object { $_ -match '^[^#].*=' } | ForEach-Object {
 | `CANARY_PORT` | canary 宿主端口 | `18082` |
 
 > 不要把 SSH 密码、JWT、数据库密码写入仓库。命令中的 `$JWT`、`$POSTGRES_PASSWORD` 等由当前 shell 环境提供。
+
+### 1.1 更新通道（2.21.6 起）
+
+日常升级只发布源码，不向服务器上传任何文件：
+
+1. 本地合并上游 tag，跑通第 5–6 节门禁。
+2. 只推送 `feat/model-guard`。`docker-image.yml` 在 `VERSION` 对应 tag 不存在时自动创建 `vX.Y.Z` Release，构建并推送 `:X.Y.Z`、`:latest`。
+3. 服务器后台通过内置检查读取本 fork 的 Release；管理员确认后点击「立即更新镜像」。
+4. Watchtower 拉取 `:latest` 并重建 `sub2api`；`WATCHTOWER_CLEANUP=true` 删除旧镜像。
+
+约束：
+
+- 开发机不执行 `ssh`/`scp`/远程 `docker` 命令，不保存或传递服务器凭据。
+- 服务器默认 `WATCHTOWER_HTTP_API_PERIODIC_POLLS=false`，不会自动轮询；只有点击按钮才更新。
+- Docker 更新不创建本地数据快照或二进制备份；回退只使用 GHCR 中已发布的旧 tag（见 10.3）。
+- 6.2–9 节的服务器手动构建、canary、compose 切换仅用于例外场景。
 
 ## 2. 前置条件
 
@@ -123,7 +139,9 @@ git diff --name-only --diff-filter=U       # 必须为空
    - `frontend/src/components/layout/AppSidebar.vue`：模型哨兵菜单项。
    - `frontend/src/router/index.ts`：`/admin/codex-eval` 路由。
 3. 若上游改了同一函数签名，以新签名为准，调整 Model Guard 调用点。
-4. 重新执行 5.3 和 6.1，直到无冲突且测试通过。
+4. 工作流冲突保持 fork 的精简集合：只保留 `ci.yml`、`docker-image.yml`、`security-scan.yml`、`upstream-sync.yml`；上游恢复或新增的其他 workflow 一律删除。
+5. i18n 冲突保留 `nav.accountEvaluation`；上游已删除的功能键（例如 `nav.harvestFlow`）不再恢复，上游已删除的页面/API 也不要从 fork 侧补回。
+6. 重新执行 5.3 和 6.1，直到无冲突且测试通过。
 
 ### 5.3 合并后检查
 
@@ -134,6 +152,8 @@ git diff --cached --name-only | Select-String 'codexeval|model-guard|CodexEval' 
 Select-String -Path backend\internal\server\routes\admin.go -Pattern 'codex-eval|codex_eval'
 Select-String -Path frontend\src\components\layout\AppSidebar.vue -Pattern '模型哨兵|codex-eval'
 Select-String -Path frontend\src\router\index.ts -Pattern 'codex-eval|CodexEval'
+(Get-ChildItem .github\workflows).Count                  # 应为 4
+Select-String -Path frontend\src\i18n\locales\en\common.ts -Pattern 'accountEvaluation'
 ```
 
 提交合并：
@@ -155,7 +175,9 @@ go build -p 1 -tags embed -trimpath -o ..\.local-run\model-guard-$NEW_VERSION.ex
 
 两项均通过才可进入镜像构建。失败时停止，不得用旧二进制替代。
 
-### 6.2 服务器镜像构建
+### 6.2 服务器镜像构建（仅例外场景）
+
+> 日常发布由 `docker-image.yml` 构建并推送 GHCR，不需要登录服务器。只有 CI 不可用或需要固定本地镜像时才执行本节。
 
 ```bash
 ssh root@$SERVER
@@ -316,9 +338,18 @@ docker compose up -d sub2api
 
 数据回滚会丢失备份时间点之后的写入；执行前必须确认影响范围并再次备份当前状态。
 
+### 10.3 内置更新通道的回退边界（无本地数据）
+
+内置更新通道的 Docker 更新不创建本地回退数据：
+
+- `update_service.go` 在 Docker 模式拒绝页内回退，返回 `DOCKER_UPDATE_UNSUPPORTED`，不会写二进制备份或数据目录。
+- Watchtower 以 `WATCHTOWER_CLEANUP=true` 删除旧镜像，服务器不保留旧镜像副本。
+- 需要回退时，只把 compose 的 `image:` 指回 GHCR 中已发布的旧版本 tag，再执行 `docker compose up -d sub2api`。
+- 不使用 10.2 的数据回滚，除非确认数据损坏并另行评估数据丢失；日常更新不创建 `$BACKUP_DIR`，避免数据越堆越多。
+
 ## 11. 证据记录
 
-本次 2.21.5 执行证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.23.1 执行证据见 [docs/upgrades/2.23.1.md](upgrades/2.23.1.md)；历史 2.21.5 证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -334,6 +365,8 @@ docker compose up -d sub2api
 | Model Guard 生产 API | PASS/FAIL | state/settings 响应 |
 | 公网页面 | PASS/FAIL | 域名截图 |
 | 回滚路径 | PASS/FAIL | compose 备份路径、旧镜像 tag |
+| 内置更新识别 | PASS/FAIL | `has_update=true`、`deployment=docker`、`update_supported=true` |
+| 无本地回退数据 | PASS/FAIL | `WATCHTOWER_CLEANUP=true`、Docker 回退接口不可用 |
 
 ## 12. 常见问题
 
@@ -349,7 +382,7 @@ docker compose up -d sub2api
 | 巡检重复执行/额度异常 | Canary 未关闭巡检 | 启动前把 `codex_eval_inspection_enabled` 设为 `false`，验证后删除 canary |
 | 合并后页面入口消失 | 冲突时覆盖了 fork 文件 | 按 5.2 恢复 routes/sidebar/router，重跑测试 |
 
-## 13. 本次 2.21.5 执行值
+## 13. 历史执行值：2.21.5
 
 ```text
 OLD_VERSION=2.21.4
@@ -370,3 +403,21 @@ EVIDENCE=docs/upgrades/2.21.5.md
 ```
 
 > `MERGE_COMMIT` 是上游版本与 fork 的功能合并点；`IMAGE_SOURCE_COMMIT` 是实际构建的 `HEAD`，可能还包含合并后的文档提交。两者都记录，便于审计与回滚。
+
+## 14. 2.23.1 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.22.0
+NEW_VERSION=2.23.1
+NEW_TAG=v2.23.1
+NEW_COMMIT=00e00796080c632188cf9df7912050b144a1a44f
+MERGE_COMMIT=30dd5e363
+BACKUP_BRANCH=backup/model-guard-2.22.0-20261120-112441
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1
+IMAGE_DIGEST=<CI 完成后回填>
+EVIDENCE=docs/upgrades/2.23.1.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+```
+
+> 本次不执行服务器 SSH/SCP、手动镜像构建或 canary；推送源码后由 GitHub Actions 创建 `v2.23.1` Release 和镜像，生产更新由管理员在后台点击完成。`WATCHTOWER_CLEANUP=true` 会删除旧镜像，服务器不保留本地回退数据。

@@ -262,11 +262,13 @@ docker compose -f docker-compose.local.yml down
 rm -rf data/ postgres_data/ redis_data/
 ```
 
-`docker-compose.local.yml` also ships a `watchtower` service. It polls GHCR every 5 minutes
-and recreates only the labeled `sub2api` container, so a new `:latest` image is applied
-without running the pull commands manually. Keep the image on `:latest`; pinning
-`:2.22.x` disables this automatic path. See the project README for the version-bump
-release flow and the optional in-page “Update Image Now” trigger.
+`docker-compose.local.yml` also ships a `watchtower` service. With the HTTP API trigger
+enabled, periodic polling stays off by default (`WATCHTOWER_HTTP_API_PERIODIC_POLLS=false`);
+the admin page's “Update Image Now” button triggers the pull. It only recreates the labeled
+`sub2api` container and removes the previous image (`WATCHTOWER_CLEANUP=true`), so no old
+image or rollback data snapshot is retained locally. Keep the image on `:latest`; pinning
+`:2.23.x` disables the in-page update path. See the project README for the version-bump
+release flow and the optional in-page update trigger.
 
 For **named volumes version** (docker-compose.yml):
 

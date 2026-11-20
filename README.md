@@ -8,7 +8,7 @@
 
 多账号 AI API 网关，保留 Sub2API 的账号、API Key、计费、调度和后台能力，并加入糖果测试、指纹检测、历史记录、定时巡检和降级模型控制。
 
-[![Version](https://img.shields.io/badge/version-2.22.0-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
+[![Version](https://img.shields.io/badge/version-2.23.1-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
 [![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8.svg)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
@@ -90,16 +90,18 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 
 ### 自动构建与更新
 
-- 推送 `v*` tag（例如 `v2.22.0`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.22.0`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
-- 也可以只修改 `backend/cmd/server/VERSION` 并推送到 `feat/model-guard`：如果 `vX.Y.Z` tag 还不存在，workflow 会自动创建 tag 和 GitHub Release，并把同版本镜像和 `:latest` 推到 GHCR；服务器上的 Watchtower 会在下一次轮询（默认 5 分钟）自动拉取重建。版本号没变时只构建分支/`sha-*` 镜像，不会更新 `latest`。
-- 服务器上的 Watchtower 自动拉取 `:latest` 并重建 `sub2api`；也可以手动执行：
+- 推送 `v*` tag（例如 `v2.23.1`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
+- 也可以只修改 `backend/cmd/server/VERSION` 并推送到 `feat/model-guard`：如果 `vX.Y.Z` tag 还不存在，workflow 会自动创建 tag 和 GitHub Release，并把同版本镜像和 `:latest` 推到 GHCR。服务器默认不轮询，管理员在后台看到新版本后点击「立即更新镜像」才会拉取。版本号没变时只构建分支/`sha-*` 镜像，不会更新 `latest`。
+- 点击更新后，Watchtower 拉取 `:latest` 并重建 `sub2api`；也可以手动执行：
   ```bash
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
-- Docker 模式不会在容器内替换二进制：更新只通过拉取 fork 镜像完成。未配置 Watchtower HTTP API 时页面显示手动命令；配置后显示“立即更新镜像”，由 Watchtower 拉取并重建容器，页面在服务恢复后自动刷新。
+- Docker 模式不会在容器内替换二进制：更新只通过拉取 fork 镜像完成。未配置 Watchtower HTTP API 时页面显示手动命令；配置后显示“立即更新镜像”，由 Watchtower 拉取并重建容器，页面在服务恢复后自动刷新。默认 `WATCHTOWER_HTTP_API_PERIODIC_POLLS=false`，不会自动更新。
+- 更新不保留本地旧镜像或数据快照：`WATCHTOWER_CLEANUP=true` 会清理旧镜像；需要回退时把 compose 指回 GHCR 中已发布的旧版本 tag，不在服务器创建回退数据目录。
+- 发布流程只推送源码提交；开发机不通过 SSH/SCP 上传镜像或文件，服务器地址和凭据不进入仓库或 CI。
 - 一键更新只更新**本 fork 已发布**的镜像；ranxi2001/sub2api 的上游新版本仍需先通过上游同步 PR 合并。合并后 `VERSION` 会变为上游版本，workflow 自动创建对应 tag/Release 并发布镜像；不能直接用上游二进制覆盖，否则模型哨兵会丢失。
-- 服务器 compose 必须使用 `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest`，并保留 `sub2api` 的 `com.centurylinklabs.watchtower.enable=true` 标签和 `watchtower` 服务；使用固定版本 tag 的部署不会自动跟随新版本。
+- 服务器 compose 必须使用 `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest`，并保留 `sub2api` 的 `com.centurylinklabs.watchtower.enable=true` 标签和 `watchtower` 服务；使用固定版本 tag 的部署不会进入页内更新路径。
 - 只想从源码构建时，叠加 `docker-compose.model-guard.yml`：
   ```bash
   docker compose -f docker-compose.local.yml \

@@ -8,7 +8,7 @@
 
 A multi-account AI API gateway based on Sub2API. It retains Sub2API's account, API key, billing, scheduling and admin capabilities, and adds candy tests, fingerprint detection, history, scheduled inspections and degraded-model control.
 
-[![Version](https://img.shields.io/badge/version-2.22.0-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
+[![Version](https://img.shields.io/badge/version-2.23.1-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
 [![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8.svg)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
@@ -90,16 +90,18 @@ If no admin account is configured in `.env`, the first startup log will contain 
 
 ### Automated Builds and Updates
 
-- Pushing a `v*` tag (for example `v2.22.0`) triggers `.github/workflows/docker-image.yml`, which builds `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.22.0`, `:latest` and `:sha-*`, and creates a GitHub Release with the same name.
-- You can also bump `backend/cmd/server/VERSION` and push to `feat/model-guard`: if the `vX.Y.Z` tag does not exist, the workflow creates the tag and GitHub Release automatically, then pushes the versioned image and `:latest` to GHCR. Watchtower on the server pulls and recreates the container on its next poll (5 minutes by default). Pushes without a version bump only build branch/`sha-*` images and do not move `latest`.
-- Watchtower on the server automatically pulls `:latest` and recreates `sub2api`. You can also do it manually:
+- Pushing a `v*` tag (for example `v2.23.1`) triggers `.github/workflows/docker-image.yml`, which builds `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1`, `:latest` and `:sha-*`, and creates a GitHub Release with the same name.
+- You can also bump `backend/cmd/server/VERSION` and push to `feat/model-guard`: if the `vX.Y.Z` tag does not exist, the workflow creates the tag and GitHub Release automatically, then pushes the versioned image and `:latest` to GHCR. Servers do not poll by default; the admin clicks "Update Image Now" after the built-in check finds the new version. Pushes without a version bump only build branch/`sha-*` images and do not move `latest`.
+- After the click, Watchtower pulls `:latest` and recreates `sub2api`. You can also do it manually:
   ```bash
   docker compose -f docker-compose.local.yml pull sub2api
   docker compose -f docker-compose.local.yml up -d sub2api
   ```
-- Docker mode never replaces the binary inside the container: updates only happen by pulling the fork image. Without the Watchtower HTTP API the page shows the manual command; once configured it shows "Update Image Now", Watchtower pulls and recreates the container, and the page refreshes when the service is back.
+- Docker mode never replaces the binary inside the container: updates only happen by pulling the fork image. Without the Watchtower HTTP API the page shows the manual command; once configured it shows "Update Image Now", Watchtower pulls and recreates the container, and the page refreshes when the service is back. `WATCHTOWER_HTTP_API_PERIODIC_POLLS=false` is the default, so nothing updates automatically.
+- Updates do not keep old images or data snapshots locally: `WATCHTOWER_CLEANUP=true` removes the previous image. To roll back, point compose at a previously published GHCR tag; no rollback data directory is created on the server.
+- The release flow only pushes source commits; the developer machine never uploads images or files over SSH/SCP, and server addresses or credentials never enter the repository or CI.
 - The one-click path only updates images **published by this fork**. A new `ranxi2001/sub2api` upstream release still has to go through the upstream-sync PR first. After that merge, `VERSION` becomes the upstream version and the workflow creates the tag/Release and image automatically; installing the upstream binary directly would remove Model Guard.
-- The server compose file must use `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest` and keep the `sub2api` `com.centurylinklabs.watchtower.enable=true` label plus the `watchtower` service. A pinned version tag does not follow new releases automatically.
+- The server compose file must use `image: ghcr.io/ericzhouyihe/sub2api-codex-guard:latest` and keep the `sub2api` `com.centurylinklabs.watchtower.enable=true` label plus the `watchtower` service. A pinned version tag does not enter the in-page update path.
 - To build from source only, add the `docker-compose.model-guard.yml` override:
   ```bash
   docker compose -f docker-compose.local.yml \
