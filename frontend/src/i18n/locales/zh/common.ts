@@ -208,7 +208,6 @@ export default {
     subscriptions: '订阅管理',
     accounts: '账号管理',
     accountEvaluation: '模型哨兵',
-    harvestFlow: '打票流程',
     plugins: '插件管理',
     proxies: 'IP管理',
     redeemCodes: '兑换码',

@@ -208,7 +208,6 @@ export default {
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     accountEvaluation: 'Model Guard',
-    harvestFlow: 'Ticket Flow',
     plugins: 'Plugins',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
