@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-20
 
-**Status**: Draft
+**Status**: Implemented (2026-11-20; `v2.23.1` published, production click pending)
 
 **Input**: 用户描述："上游有更新了，2.23.1 了，根据 spec 里写的大概的完成的一些流程，继续更新成最新的，并同步到服务器端。最好不要设计成自动上传到服务器，会不会在执行流程里也有敏感信息。让项目自带的能拉取到更新的信息，然后点更新按钮更新。还有回退的功能是会留存旧数据到本机吗？如果是就不要搞这个，感觉数据越堆越多。使用 spec 的 skill。优化提交的内容，不需要提交的都不要提交到 GitHub。"
 
@@ -135,3 +135,12 @@
 - Docker 部署的数据卷（PostgreSQL、Redis、`data/`）在镜像更新时保持不变；本功能不负责数据库迁移回滚。
 - 旧版本镜像 tag 在 GHCR 中保留足够时间，供人工回退使用。
 - `feat/model-guard` 是唯一发布分支，CI 和内置更新检查都以它为准。
+
+## Implementation Record
+
+- Merge commit: `30dd5e363297e8fb43354f08620a6bf8509e6ab9`
+- Release commit/tag: `f68a2c088e18dd6e0c248b7aa31448c5c4678cf9` / `v2.23.1`
+- Image: `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1` / `:latest`
+- Digest: `sha256:391c28a16cc07c1e27a0475b9447fdc58b0c74fb2ccd1bcc2613cd9beacc6fdc`
+- CI: `CI` #16 success, `Docker Image` #18 success
+- Production update: pending administrator click on “立即更新镜像” (no server upload by design)
