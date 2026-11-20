@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex 降智测试</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div class="title-group">
+        <div class="brand-mark" aria-hidden="true">糖</div>
+        <div>
+          <h1>Codex 降智测试</h1>
+          <p class="subtitle">糖果 · 指纹 · 鹈鹕 · SIWC · Sub2API 插件</p>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span id="dirty" class="badge badge-dirty" hidden>未保存</span>
+        <span id="version-badge" class="badge badge-version">版本 —</span>
+      </div>
+    </header>
+
+    <div id="banner" class="banner" role="alert" hidden></div>
+
+    <section class="card runtime-card" aria-labelledby="runtime-title">
+      <div class="card-head">
+        <h2 id="runtime-title">运行状态</h2>
+        <div class="health-line">
+          <span id="health-dot" class="status-dot off" aria-hidden="true"></span>
+          <span id="health-text" class="health-text" role="status">正在连接…</span>
+        </div>
+      </div>
+      <p id="health-detail" class="health-detail" hidden></p>
+      <div id="test-status-grid" class="test-status-grid" aria-label="各检测项目状态"></div>
+      <div class="run-times">
+        <div class="run-time">
+          <span class="run-time-label">上次检测</span>
+          <span id="last-run" class="run-time-value">—</span>
+        </div>
+        <div class="run-time">
+          <span class="run-time-label">下次定时检测</span>
+          <span id="next-run" class="run-time-value">—</span>
+        </div>
+      </div>
+      <div class="summary-chips" aria-label="当前项目检测汇总">
+        <span class="chip chip-correct"><span>正确</span><strong id="sum-correct">0</strong></span>
+        <span class="chip chip-wrong"><span>错误</span><strong id="sum-wrong">0</strong></span>
+        <span class="chip chip-failed"><span>失败</span><strong id="sum-failed">0</strong></span>
+        <span class="chip chip-skipped"><span>跳过</span><strong id="sum-skipped">0</strong></span>
+        <span class="chip chip-total"><span>总数</span><strong id="sum-total">0</strong></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="settings-title">
+      <div class="card-head">
+        <h2 id="settings-title">检测配置</h2>
+        <span class="card-note">保存后立即生效；定时检测按间隔自动执行所启用的项目。</span>
+      </div>
+
+      <div class="form-grid">
+        <div class="field field-wide">
+          <span class="field-label">启用的检测项目（定时执行）</span>
+          <div class="check-row check-row-inline">
+            <label class="check" for="test_candy"><input id="test_candy" type="checkbox" value="candy" checked> 糖果</label>
+            <label class="check" for="test_fingerprint"><input id="test_fingerprint" type="checkbox" value="fingerprint"> 指纹</label>
+            <label class="check" for="test_pelican"><input id="test_pelican" type="checkbox" value="pelican"> 鹈鹕</label>
+            <label class="check" for="test_siwc"><input id="test_siwc" type="checkbox" value="siwc"> SIWC 可用性</label>
+          </div>
+          <p id="schedule_tests-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label for="active_test">「立即检测」执行项目</label>
+          <select id="active_test">
+            <option value="candy">糖果</option>
+            <option value="fingerprint">指纹</option>
+            <option value="pelican">鹈鹕</option>
+            <option value="siwc">SIWC 可用性</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fingerprint_concurrency">指纹检测并发数</label>
+          <input id="fingerprint_concurrency" type="number" min="1" max="3" step="1" inputmode="numeric">
+          <p id="fingerprint_concurrency-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label for="pelican_variant">鹈鹕版本</label>
+          <select id="pelican_variant">
+            <option value="original">原版（HTML 动画）</option>
+            <option value="all-in-one">多合一版（SVG）</option>
+          </select>
+        </div>
+        <div class="field field-wide">
+          <label for="models">模型列表 <span class="required">*</span></label>
+          <textarea id="models" rows="4" spellcheck="false" placeholder="gpt-6.1-sol"></textarea>
+          <p class="hint">每行一个模型，至少 1 个，最多 10 个。</p>
+          <p id="models-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label for="runs">每账号每模型糖果次数</label>
+          <input id="runs" type="number" min="1" max="10" step="1" inputmode="numeric">
+          <p id="runs-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label for="concurrency">账号并发数</label>
+          <input id="concurrency" type="number" min="1" max="16" step="1" inputmode="numeric">
+          <p id="concurrency-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label for="effort">推理强度</label>
+          <select id="effort">
+            <option value="">默认（不指定）</option>
+            <option value="low">low（低）</option>
+            <option value="medium">medium（中）</option>
+            <option value="high">high（高）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="schedule_minutes">定时检测间隔（分钟）</label>
+          <input id="schedule_minutes" type="number" min="5" max="10080" step="1" inputmode="numeric">
+          <p id="schedule_minutes-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <div class="field field-wide">
+          <label for="account_ids">账号 ID（可选）</label>
+          <input id="account_ids" type="text" spellcheck="false" placeholder="留空表示全部 OpenAI OAuth 账号；多个 ID 用逗号或空格分隔">
+          <p class="hint">仅填写数字 ID，例如 <code>12, 34 56</code>。</p>
+          <p id="account_ids-error" class="field-error" role="alert" hidden></p>
+        </div>
+      </div>
+      <div class="check-row">
+        <label class="check" for="schedulable_only"><input id="schedulable_only" type="checkbox"> 仅检测可调度账号</label>
+        <label class="check" for="schedule_enabled"><input id="schedule_enabled" type="checkbox"> 启用定时检测</label>
+      </div>
+      <div class="actions">
+        <button id="save" class="btn btn-primary" type="button">保存配置</button>
+        <button id="test" class="btn btn-secondary" type="button">立即检测</button>
+        <button id="refresh" class="btn btn-ghost" type="button">刷新状态</button>
+        <span id="action-status" class="action-status" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="results-title">
+      <div class="card-head">
+        <h2 id="results-title">检测结果</h2>
+        <span id="results-meta" class="card-note">暂无</span>
+      </div>
+      <div id="result-tabs" class="tabs" role="tablist" aria-label="检测项目">
+        <button class="tab active" type="button" role="tab" data-test="candy" aria-selected="true">糖果</button>
+        <button class="tab" type="button" role="tab" data-test="fingerprint" aria-selected="false">指纹</button>
+        <button class="tab" type="button" role="tab" data-test="pelican" aria-selected="false">鹈鹕</button>
+        <button class="tab" type="button" role="tab" data-test="siwc" aria-selected="false">SIWC</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table results-table">
+          <thead>
+            <tr>
+              <th scope="col">时间</th>
+              <th scope="col">账号</th>
+              <th scope="col">模型 / 版本</th>
+              <th scope="col">结果</th>
+              <th scope="col">耗时</th>
+              <th scope="col">详情</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="accounts-title">
+      <div class="card-head">
+        <h2 id="accounts-title">账号</h2>
+        <span id="accounts-meta" class="card-note">暂无</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table accounts-table">
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">账号名称</th>
+              <th scope="col">状态</th>
+              <th scope="col">可调度</th>
+            </tr>
+          </thead>
+          <tbody id="accounts-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="logs-title">
+      <div class="card-head">
+        <h2 id="logs-title">运行日志</h2>
+        <span id="logs-meta" class="card-note">暂无</span>
+      </div>
+      <ol id="logs" class="logs"></ol>
+    </section>
+
+    <footer class="page-footer">Sub2API UI Bridge v1 · 本页仅使用本地资源</footer>
+  </main>
+
+  <div id="preview-modal" class="modal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="modal-head">
+        <h3 id="preview-title">鹈鹕图预览</h3>
+        <button id="preview-close" class="btn btn-ghost" type="button">关闭</button>
+      </div>
+      <iframe id="preview-frame" class="preview-frame" sandbox="allow-scripts" title="鹈鹕图预览"></iframe>
+    </div>
+  </div>
+
+  <script src="assets/bridge-v1.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
