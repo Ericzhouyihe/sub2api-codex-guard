@@ -95,17 +95,28 @@ func filterRetiredOpenAIPublicModelsBody(body []byte, accounts []Account, codex 
 
 // Compact-only administrator mappings are evaluated against their actual
 // target, without treating an old client-visible name as a retired target.
-func supportsOpenAIRequestModel(account *Account, requestedModel string, requireCompact bool) bool {
+func supportsOpenAIRequestModel(account *Account, requestedModel string, requireCompact bool, compactModel ...string) bool {
+	endpoint := ""
+	if requireCompact {
+		endpoint = "/responses/compact"
+	}
+	if account.isOAuth429ModelBlockedForEndpoint(requestedModel, endpoint, compactModel...) {
+		return false
+	}
+	target := ResolveOAuth429TargetModel(account, requestedModel, endpoint, compactModel...)
 	// Compact routing can select a different upstream target than the normal
 	// mapping, so test that target in addition to the public request name.
-	if account.codexInspectionUpstreamModelBlocked(resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)) {
+	if account.codexInspectionUpstreamModelBlocked(target) {
 		return false
 	}
-	if account.Platform == PlatformOpenAI && !account.oauthInitialSelectionAllows(resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)) {
+	if account.Platform == PlatformOpenAI && !account.oauthInitialSelectionAllows(target) {
 		return false
 	}
-	if isRetiredOpenAISubscriptionModel(account, resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)) {
+	if isRetiredOpenAISubscriptionModel(account, target) {
 		return false
+	}
+	if account.gatewayBindingModel != "" {
+		return account.gatewayProtocolSource.isModelMappingSupported(account.gatewayBindingModel)
 	}
 	return account.isModelMappingSupported(requestedModel)
 }
