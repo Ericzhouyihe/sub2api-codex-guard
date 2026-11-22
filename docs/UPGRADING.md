@@ -349,7 +349,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.23.1 执行证据见 [docs/upgrades/2.23.1.md](upgrades/2.23.1.md)；历史 2.21.5 证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.24.1 执行证据见 [docs/upgrades/2.24.1.md](upgrades/2.24.1.md)；历史 2.23.1 证据见 [docs/upgrades/2.23.1.md](upgrades/2.23.1.md)，2.21.5 证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -379,6 +379,7 @@ docker compose up -d sub2api
 | Canary 应用启动失败/连不上 Redis | Redis 未先启动，或 `NETWORK` 写错 | 先启动 `sub2api-canary-redis-$CANARY_SUFFIX` 并等 `PONG`；`NETWORK` 用 `docker inspect sub2api` 的实际网络名（本机为 `sub2api-deploy_sub2api-network`） |
 | 基线 `history_records=0` 但页面有历史 | `history.json` 不是 `records` 数组 | 用 `results` / `fingerprints` 统计 `candy_accounts`、`candy_records`、`fingerprint_records` |
 | 升级后仍提示新版本 | 构建时 `VERSION` 带了后缀 | `VERSION` 用纯版本号，`-modelguard` 只放镜像 tag |
+| Go 测试 setup 阶段下载依赖超时 | 上游新增了测试依赖（如 `jsonschema-go`），默认 `proxy.golang.org` 不可达 | 用 `GOPROXY=https://goproxy.cn,direct` 重跑测试与构建（2.24.1 首次发现） |
 | 巡检重复执行/额度异常 | Canary 未关闭巡检 | 启动前把 `codex_eval_inspection_enabled` 设为 `false`，验证后删除 canary |
 | 合并后页面入口消失 | 冲突时覆盖了 fork 文件 | 按 5.2 恢复 routes/sidebar/router，重跑测试 |
 
@@ -423,3 +424,22 @@ SERVER_UPLOAD=none
 ```
 
 > 本次不执行服务器 SSH/SCP、手动镜像构建或 canary；推送源码后由 GitHub Actions 创建 `v2.23.1` Release 和镜像，生产更新由管理员在后台点击完成。`WATCHTOWER_CLEANUP=true` 会删除旧镜像，服务器不保留本地回退数据。
+
+## 15. 2.24.1 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.23.1
+NEW_VERSION=2.24.1
+NEW_TAG=v2.24.1
+NEW_COMMIT=0755d5ef037f64d203828d0edcc513764b69e1d2
+MERGE_COMMIT=7afdd54a4
+BACKUP_BRANCH=backup/model-guard-2.23.1-20261122-124147
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.24.1
+IMAGE_DIGEST=sha256:f9a1b0a000e0497fa35c50c60ab1c8883730f5de3310dff542beda2b3de1d77d
+EVIDENCE=docs/upgrades/2.24.1.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+GO_PROXY=GOPROXY=https://goproxy.cn,direct（上游新增测试依赖 jsonschema-go）
+```
+
+> 本次同样不执行服务器 SSH/SCP、手动镜像构建或 canary。冲突集中在 OAuth-429 模型屏蔽与巡检 extra 键的三个后端文件，按“保留双方”解决；工作流新增/恢复的 15 个文件全部删除。
