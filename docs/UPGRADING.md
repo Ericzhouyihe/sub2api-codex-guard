@@ -349,7 +349,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.24.1 执行证据见 [docs/upgrades/2.24.1.md](upgrades/2.24.1.md)；历史 2.23.1 证据见 [docs/upgrades/2.23.1.md](upgrades/2.23.1.md)，2.21.5 证据见 [docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.24.2 执行证据见 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)；历史证据见 [docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -443,3 +443,21 @@ GO_PROXY=GOPROXY=https://goproxy.cn,direct（上游新增测试依赖 jsonschema
 ```
 
 > 本次同样不执行服务器 SSH/SCP、手动镜像构建或 canary。冲突集中在 OAuth-429 模型屏蔽与巡检 extra 键的三个后端文件，按“保留双方”解决；工作流新增/恢复的 15 个文件全部删除。
+
+## 16. 2.24.2 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.24.1
+NEW_VERSION=2.24.2
+NEW_TAG=v2.24.2
+NEW_COMMIT=991cd30e2910d5eeb6ab55f6b7fc93e9a494e1a6
+MERGE_COMMIT=7ac6872ce
+BACKUP_BRANCH=backup/model-guard-2.24.1-20261123-102409
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.24.2
+IMAGE_DIGEST=<CI 完成后回填>
+EVIDENCE=docs/upgrades/2.24.2.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+```
+
+> 本次冲突全部是「上游修改、fork 已删除」的 workflow 文件（4 个 modify/delete 加 1 个自动新增的 `billing-recovery-fairness.yml`），按惯例全部删除，只保留 fork 的 4 个工作流；后端、i18n、路由均自动合并，Model Guard 接线无需手工干预。数据库迁移 `393_account_usage_financial_rollups.sql` 随新镜像启动自动执行，不保留本地回退数据。

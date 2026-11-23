@@ -8,7 +8,7 @@
 
 多账号 AI API 网关，保留 Sub2API 的账号、API Key、计费、调度和后台能力，并加入糖果测试、指纹检测、历史记录、定时巡检和降级模型控制。
 
-[![Version](https://img.shields.io/badge/version-2.23.1-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
+[![Version](https://img.shields.io/badge/version-2.24.2-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
 [![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8.svg)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
@@ -90,7 +90,7 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 
 ### 自动构建与更新
 
-- 推送 `v*` tag（例如 `v2.23.1`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
+- 推送 `v*` tag（例如 `v2.24.2`）会触发 `.github/workflows/docker-image.yml`，构建 `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.24.2`、`:latest` 和 `:sha-*`，并创建同名 GitHub Release。
 - 也可以只修改 `backend/cmd/server/VERSION` 并推送到 `feat/model-guard`：如果 `vX.Y.Z` tag 还不存在，workflow 会自动创建 tag 和 GitHub Release，并把同版本镜像和 `:latest` 推到 GHCR。服务器默认不轮询，管理员在后台看到新版本后点击「立即更新镜像」才会拉取。版本号没变时只构建分支/`sha-*` 镜像，不会更新 `latest`。
 - 点击更新后，Watchtower 拉取 `:latest` 并重建 `sub2api`；也可以手动执行：
   ```bash

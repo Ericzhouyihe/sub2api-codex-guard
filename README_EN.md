@@ -8,7 +8,7 @@
 
 A multi-account AI API gateway based on Sub2API. It retains Sub2API's account, API key, billing, scheduling and admin capabilities, and adds candy tests, fingerprint detection, history, scheduled inspections and degraded-model control.
 
-[![Version](https://img.shields.io/badge/version-2.23.1-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
+[![Version](https://img.shields.io/badge/version-2.24.2-2496ED.svg)](https://github.com/Ericzhouyihe/sub2api-codex-guard)
 [![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8.svg)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
@@ -90,7 +90,7 @@ If no admin account is configured in `.env`, the first startup log will contain 
 
 ### Automated Builds and Updates
 
-- Pushing a `v*` tag (for example `v2.23.1`) triggers `.github/workflows/docker-image.yml`, which builds `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.23.1`, `:latest` and `:sha-*`, and creates a GitHub Release with the same name.
+- Pushing a `v*` tag (for example `v2.24.2`) triggers `.github/workflows/docker-image.yml`, which builds `ghcr.io/ericzhouyihe/sub2api-codex-guard:2.24.2`, `:latest` and `:sha-*`, and creates a GitHub Release with the same name.
 - You can also bump `backend/cmd/server/VERSION` and push to `feat/model-guard`: if the `vX.Y.Z` tag does not exist, the workflow creates the tag and GitHub Release automatically, then pushes the versioned image and `:latest` to GHCR. Servers do not poll by default; the admin clicks "Update Image Now" after the built-in check finds the new version. Pushes without a version bump only build branch/`sha-*` images and do not move `latest`.
 - After the click, Watchtower pulls `:latest` and recreates `sub2api`. You can also do it manually:
   ```bash
