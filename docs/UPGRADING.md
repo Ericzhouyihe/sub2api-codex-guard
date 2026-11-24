@@ -349,7 +349,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.24.2 执行证据见 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)；历史证据见 [docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.24.3 执行证据见 [docs/upgrades/2.24.3.md](upgrades/2.24.3.md)；历史证据见 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -461,3 +461,21 @@ SERVER_UPLOAD=none
 ```
 
 > 本次冲突全部是「上游修改、fork 已删除」的 workflow 文件（4 个 modify/delete 加 1 个自动新增的 `billing-recovery-fairness.yml`），按惯例全部删除，只保留 fork 的 4 个工作流；后端、i18n、路由均自动合并，Model Guard 接线无需手工干预。数据库迁移 `393_account_usage_financial_rollups.sql` 随新镜像启动自动执行，不保留本地回退数据。
+
+## 17. 2.24.3 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.24.2
+NEW_VERSION=2.24.3
+NEW_TAG=v2.24.3
+NEW_COMMIT=691a36fc39aea4419bc2b114ef76303647dfccd1
+MERGE_COMMIT=21c45cf4f
+BACKUP_BRANCH=backup/model-guard-2.24.2-20261124-091757
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.24.3
+IMAGE_DIGEST=<CI 完成后回填>
+EVIDENCE=docs/upgrades/2.24.3.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+```
+
+> 本次冲突同样全部是「上游修改、fork 已删除」的 workflow 文件（3 个 workflow 加 `workflow-archive/README.md`），并删除上游自动新增的 2 个 workflow 和 1 个 `workflow-archive` 文件；只保留 fork 的 4 个工作流。后端、i18n、路由全部自动合并，Model Guard 接线无需手工干预。本版**无新增数据库迁移**。
