@@ -52,6 +52,7 @@ Get-Content .env | Where-Object { $_ -match '^[^#].*=' } | ForEach-Object {
 - 开发机不执行 `ssh`/`scp`/远程 `docker` 命令，不保存或传递服务器凭据。
 - 服务器默认 `WATCHTOWER_HTTP_API_PERIODIC_POLLS=false`，不会自动轮询；只有点击按钮才更新。
 - Docker 更新不创建本地数据快照或二进制备份；回退只使用 GHCR 中已发布的旧 tag（见 10.3）。
+- 内置通道不做备份，也不会拦截不可逆迁移。上游发布说明要求升级前备份，或新增迁移含 `DROP`、`TRUNCATE`、`DELETE FROM` 时（如 2.25.0 的 `398_drop_user_traffic.sql`），必须先在服务器导出受影响的数据，再点击「立即更新镜像」（检查步骤见 5.3）。
 - 6.2–9 节的服务器手动构建、canary、compose 切换仅用于例外场景。
 
 ## 2. 前置条件
@@ -154,7 +155,14 @@ Select-String -Path frontend\src\components\layout\AppSidebar.vue -Pattern '模�
 Select-String -Path frontend\src\router\index.ts -Pattern 'codex-eval|CodexEval'
 (Get-ChildItem .github\workflows).Count                  # 应为 4
 Select-String -Path frontend\src\i18n\locales\en\common.ts -Pattern 'accountEvaluation'
+
+# 迁移检查：OLD_UPSTREAM_COMMIT 是上一次升级 merge 提交的第二父提交（git rev-parse "<上一个 merge 提交>^2"）
+git diff --name-only "$OLD_UPSTREAM_COMMIT" $NEW_TAG -- backend/migrations
+git diff "$OLD_UPSTREAM_COMMIT" $NEW_TAG -- backend/migrations | Select-String -Pattern 'DROP |TRUNCATE|DELETE FROM'
+git cat-file -p $NEW_TAG | Select-Object -First 14           # 发布说明里的升级前提醒
 ```
+
+迁移检查只发现增量变更（加列、建表、建视图）时可以继续；出现 `DROP`、`TRUNCATE`、`DELETE FROM`，或发布说明要求升级前备份时，先按 1.1 的约束在服务器导出受影响的数据，再点击「立即更新镜像」，并把结论写进证据文档。2.25.0 的 `398_drop_user_traffic.sql` 是第一次遇到这种情形。
 
 提交合并：
 
@@ -349,7 +357,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.24.3 执行证据见 [docs/upgrades/2.24.3.md](upgrades/2.24.3.md)；历史证据见 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.25.0 执行证据见 [docs/upgrades/2.25.0.md](upgrades/2.25.0.md)；历史证据见 [docs/upgrades/2.24.3.md](upgrades/2.24.3.md)、 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -367,6 +375,7 @@ docker compose up -d sub2api
 | 回滚路径 | PASS/FAIL | compose 备份路径、旧镜像 tag |
 | 内置更新识别 | PASS/FAIL | `has_update=true`、`deployment=docker`、`update_supported=true` |
 | 无本地回退数据 | PASS/FAIL | `WATCHTOWER_CLEANUP=true`、Docker 回退接口不可用 |
+| 迁移影响评估 | PASS/不可逆 | 新增迁移清单、`DROP` 扫描、发布说明；不可逆时记录导出命令 |
 
 ## 12. 常见问题
 
@@ -380,6 +389,9 @@ docker compose up -d sub2api
 | 基线 `history_records=0` 但页面有历史 | `history.json` 不是 `records` 数组 | 用 `results` / `fingerprints` 统计 `candy_accounts`、`candy_records`、`fingerprint_records` |
 | 升级后仍提示新版本 | 构建时 `VERSION` 带了后缀 | `VERSION` 用纯版本号，`-modelguard` 只放镜像 tag |
 | Go 测试 setup 阶段下载依赖超时 | 上游新增了测试依赖（如 `jsonschema-go`），默认 `proxy.golang.org` 不可达 | 用 `GOPROXY=https://goproxy.cn,direct` 重跑测试与构建（2.24.1 首次发现） |
+| 前端 `pnpm install` 长时间卡在最后一个包，或报 `ECONNRESET` | 个别依赖从 registry 以外的地址下载（`xlsx` 来自 `cdn.sheetjs.com`），直连极慢 | 用 `--reporter=append-only` 看进度；其余包会从本地 store 复用，给这一条命令设置 `HTTPS_PROXY` 为本机系统代理后重装（2.25.0 首次发现） |
+| 日志出现 `INSTALL_OK`，但依赖并没有装好 | `pnpm install ... \| tail` 后面接 `&&`，管道掩盖了退出码 | 安装和门禁分开执行，逐条检查退出码；不要用带分类标记的 `ls` 判断 `.bin` 里有没有可执行文件（2.25.0 首次发现） |
+| `pnpm install` 要求清空 `node_modules` | 本机 `pnpm` 与创建该目录的版本布局不同（Dockerfile 固定 `pnpm@9`） | 先看 `frontend/pnpm-lock.yaml` 有没有变化；没变就不要为了“刷新依赖”去清空，已有的依赖可以直接跑门禁 |
 | 巡检重复执行/额度异常 | Canary 未关闭巡检 | 启动前把 `codex_eval_inspection_enabled` 设为 `false`，验证后删除 canary |
 | 合并后页面入口消失 | 冲突时覆盖了 fork 文件 | 按 5.2 恢复 routes/sidebar/router，重跑测试 |
 
@@ -479,3 +491,25 @@ SERVER_UPLOAD=none
 ```
 
 > 本次冲突同样全部是「上游修改、fork 已删除」的 workflow 文件（3 个 workflow 加 `workflow-archive/README.md`），并删除上游自动新增的 2 个 workflow 和 1 个 `workflow-archive` 文件；只保留 fork 的 4 个工作流。后端、i18n、路由全部自动合并，Model Guard 接线无需手工干预。本版**无新增数据库迁移**。
+
+## 18. 2.25.0 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.24.3
+NEW_VERSION=2.25.0
+NEW_TAG=v2.25.0
+NEW_COMMIT=0fa2cb6ac91effee2a45b933bb44b460f05a8c49
+MERGE_COMMIT=edcc1c22f
+BACKUP_BRANCH=backup/model-guard-2.24.3-20261124-224339
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.25.0
+IMAGE_DIGEST=sha256:d8ba025685d35d98d4a0b05e25bf7385564f12db260cff7c2199febdb84dbf0a
+EVIDENCE=docs/upgrades/2.25.0.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+MIGRATIONS=394–398（增量）；398_drop_user_traffic.sql（不可逆）
+PRE_UPDATE_EXPORT=user_traffic_events, user_traffic_hourly
+```
+
+> 本次冲突仍然只是「上游修改、fork 已删除」的 workflow 文件（4 个 modify/delete 加 3 个上游新增的 workflow），全部删除，只保留 fork 的 4 个工作流；后端、i18n、路由全部自动合并，Model Guard 接线无需手工干预。
+>
+> **本版含不可逆迁移。** 上游移除「用户流量」功能，`398_drop_user_traffic.sql` 会删除 `user_traffic_events` 和 `user_traffic_hourly`，回退镜像无法恢复；内置通道不建快照。点击「立即更新镜像」之前，必须先在服务器导出这两张表（命令见证据文档）。
