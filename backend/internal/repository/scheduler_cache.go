@@ -1755,7 +1755,6 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"model_rate_limits",
 		service.QualityModelIsolationKey,
 		service.CodexInspectionBlockedModelsExtraKey,
-		service.OAuth429ModelBlocksKey,
 		service.UpstreamBillingProbeExtraKey,
 		service.GrokMediaEligibleExtraKey,
 		"grok_billing_snapshot",

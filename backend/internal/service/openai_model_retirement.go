@@ -100,9 +100,6 @@ func supportsOpenAIRequestModel(account *Account, requestedModel string, require
 	if requireCompact {
 		endpoint = "/responses/compact"
 	}
-	if account.isOAuth429ModelBlockedForEndpoint(requestedModel, endpoint, compactModel...) {
-		return false
-	}
 	target := ResolveOAuth429TargetModel(account, requestedModel, endpoint, compactModel...)
 	// Compact routing can select a different upstream target than the normal
 	// mapping, so test that target in addition to the public request name.
