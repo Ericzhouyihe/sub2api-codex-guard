@@ -52,7 +52,7 @@ Get-Content .env | Where-Object { $_ -match '^[^#].*=' } | ForEach-Object {
 - 开发机不执行 `ssh`/`scp`/远程 `docker` 命令，不保存或传递服务器凭据。
 - 服务器默认 `WATCHTOWER_HTTP_API_PERIODIC_POLLS=false`，不会自动轮询；只有点击按钮才更新。
 - Docker 更新不创建本地数据快照或二进制备份；回退只使用 GHCR 中已发布的旧 tag（见 10.3）。
-- 内置通道不做备份，也不会拦截不可逆迁移。上游发布说明要求升级前备份，或新增迁移含 `DROP`、`TRUNCATE`、`DELETE FROM`，或用 `UPDATE` 清除既有数据时（如 2.25.0 的 `398_drop_user_traffic.sql`、2.25.2 的 `399_remove_oauth_429_model_blocks.sql`），必须先确认这些数据是否需要保留；需要时先在服务器导出，再点击「立即更新镜像」（检查步骤见 5.3）。
+- 内置通道不做备份，也不会拦截不可逆迁移。上游发布说明要求升级前备份，或新增迁移含 `DROP`、`TRUNCATE`、`DELETE FROM`，或用 `UPDATE` 清除既有数据时（如 2.25.0 的 `398_drop_user_traffic.sql`、2.25.2 的 `399_remove_oauth_429_model_blocks.sql`、2.25.4 的 `400_drop_request_diagnostics.sql`），必须先确认这些数据是否需要保留；需要时先在服务器导出，再点击「立即更新镜像」（检查步骤见 5.3）。
 - 6.2–9 节的服务器手动构建、canary、compose 切换仅用于例外场景。
 
 ## 2. 前置条件
@@ -360,7 +360,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.25.3 执行证据见 [docs/upgrades/2.25.3.md](upgrades/2.25.3.md)；历史证据见 [docs/upgrades/2.25.0.md](upgrades/2.25.0.md)、[docs/upgrades/2.24.3.md](upgrades/2.24.3.md)、 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.25.4 执行证据见 [docs/upgrades/2.25.4.md](upgrades/2.25.4.md)；历史证据见 [docs/upgrades/2.25.3.md](upgrades/2.25.3.md)、[docs/upgrades/2.25.0.md](upgrades/2.25.0.md)、[docs/upgrades/2.24.3.md](upgrades/2.24.3.md)、 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -540,3 +540,25 @@ PRE_UPDATE_EXPORT=accounts.extra 中的 oauth_429_model_blocks（上游已废弃
 > 本次一次跨过上游 v2.25.1、v2.25.2、v2.25.3。除惯例删除的 CI 文件（1 个 modify/delete 加 1 个上游新增 workflow）外，后端有两处内容冲突：上游移除 OAuth-429 模型屏蔽，正好挨着 Model Guard 的巡检键（`account_repo.go`、`scheduler_cache.go`）。按「跟上游删废弃键、保留 Model Guard 键」解决，`admin_account.go` 和 `openai_model_retirement.go` 自动合并。
 >
 > **本版有一条清除数据的迁移。** `399_remove_oauth_429_model_blocks.sql` 会从 `accounts.extra` 移除已废弃的 `oauth_429_model_blocks`，回退镜像无法恢复；它不是 `DROP`，关键字扫描发现不了。Model Guard 的 `codex_eval_inspection_blocked_models` 是另一个键，不受影响。生产若仍在 2.24.3 或更早，还会连带执行 2.25.0 的删表迁移，先看第 18 节。
+
+## 20. 2.25.4 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.25.3
+NEW_VERSION=2.25.4
+NEW_TAG=v2.25.4
+NEW_COMMIT=73b3dc4b9ce915be6dcf18a78e7ea31e6f62339d
+MERGE_COMMIT=2b623678c
+BACKUP_BRANCH=backup/model-guard-2.25.3-20261127-193946
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.25.4
+IMAGE_DIGEST=<推送并构建后回填>
+EVIDENCE=docs/upgrades/2.25.4.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+MIGRATIONS=400_drop_request_diagnostics.sql（不可逆，删除两张诊断表）
+PRE_UPDATE_EXPORT=request_connection_traces、request_timing_details（仅在需要留档时导出）
+```
+
+> 本次只有 11 个上游提交，冲突仍是「上游修改、fork 已删除」的 5 个 workflow，全部删除后保留 fork 的 4 个工作流；后端自动合并，Model Guard 接线无需手工干预。前端全量 `pnpm vitest run` 633 个文件通过。
+>
+> **本版含不可逆删表迁移。** `400_drop_request_diagnostics.sql` 会删除 `request_timing_details` 和 `request_connection_traces`，回退镜像无法恢复；内置通道不建快照。Model Guard 巡检数据（`data/` 卷、`codex_eval_inspection_*`、`accounts.extra` 的 `codex_eval_inspection_blocked_models`）不受影响。上游另附 `deploy/retire-usage-billing-events.sql`，不在迁移目录内，不会被自动执行。
