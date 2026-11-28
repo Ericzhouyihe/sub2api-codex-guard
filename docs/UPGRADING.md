@@ -360,7 +360,7 @@ docker compose up -d sub2api
 
 ## 11. 证据记录
 
-本次 2.25.4 执行证据见 [docs/upgrades/2.25.4.md](upgrades/2.25.4.md)；历史证据见 [docs/upgrades/2.25.3.md](upgrades/2.25.3.md)、[docs/upgrades/2.25.0.md](upgrades/2.25.0.md)、[docs/upgrades/2.24.3.md](upgrades/2.24.3.md)、 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
+本次 2.25.6 执行证据见 [docs/upgrades/2.25.6.md](upgrades/2.25.6.md)；历史证据见 [docs/upgrades/2.25.4.md](upgrades/2.25.4.md)、[docs/upgrades/2.25.3.md](upgrades/2.25.3.md)、[docs/upgrades/2.25.0.md](upgrades/2.25.0.md)、[docs/upgrades/2.24.3.md](upgrades/2.24.3.md)、 [docs/upgrades/2.24.2.md](upgrades/2.24.2.md)、[docs/upgrades/2.24.1.md](upgrades/2.24.1.md)、[docs/upgrades/2.23.1.md](upgrades/2.23.1.md)、[docs/upgrades/2.21.5.md](upgrades/2.21.5.md)。升级记录不写入真实服务器地址或凭据，必要时只记录变量名。
 
 | Gate | 结果 | 证据 |
 |---|---|---|
@@ -563,3 +563,28 @@ PRE_UPDATE_EXPORT=request_connection_traces、request_timing_details（仅在需
 > 本次只有 11 个上游提交，冲突仍是「上游修改、fork 已删除」的 5 个 workflow，全部删除后保留 fork 的 4 个工作流；后端自动合并，Model Guard 接线无需手工干预。前端全量 `pnpm vitest run` 633 个文件通过。
 >
 > **本版含不可逆删表迁移。** `400_drop_request_diagnostics.sql` 会删除 `request_timing_details` 和 `request_connection_traces`，回退镜像无法恢复；内置通道不建快照。Model Guard 巡检数据（`data/` 卷、`codex_eval_inspection_*`、`accounts.extra` 的 `codex_eval_inspection_blocked_models`）不受影响。上游另附 `deploy/retire-usage-billing-events.sql`，不在迁移目录内，不会被自动执行。
+
+## 21. 2.25.6 执行值（内置更新通道）
+
+```text
+OLD_VERSION=2.25.4
+NEW_VERSION=2.25.6
+NEW_TAG=v2.25.6
+NEW_COMMIT=82988694ae4cece6493562cd06bc323c8b290b14
+BACKUP_BRANCH=backup/model-guard-2.25.4-<时间戳>
+IMAGE_TAG=ghcr.io/ericzhouyihe/sub2api-codex-guard:2.25.6
+EVIDENCE=docs/upgrades/2.25.6.md
+UPDATE_PATH=后台内置检查 -> 立即更新镜像 -> Watchtower 拉取 :latest
+SERVER_UPLOAD=none
+MIGRATIONS=401_usage_sla_excluded.sql、402_free_service_tier_statistics.sql（均为增量）
+PRE_UPDATE_EXPORT=none
+```
+
+> 本次一次跨过上游 v2.25.5、v2.25.6。`git merge --no-ff --no-commit v2.25.6` 没有内容冲突，Model Guard
+> 接线全部自动合并；只按惯例删除上游新增的 4 个 workflow（`issue1075-concurrency-display`、
+> `issue1077-ws-account-rejection`、`issue1081-simple-mode`、`issue1081-single-group`），保留 fork 的 4 个。
+> 前端全量 `vitest run` 634 个文件 / 6590 通过。
+>
+> **本版迁移都是增量。** 401 给 `usage_logs` 加 `sla_excluded` 列，402 新建 `usage_free_tier_quote()`、
+> 重建两个利润视图并把既有五分钟汇总加入后台重算队列；没有 `DROP`/`TRUNCATE`/`DELETE`，也不需要
+> 升级前导出。402 重算期间利润运维页可能短暂显示新旧口径并存，客户历史扣款不变。

@@ -140,7 +140,7 @@ compose 使用 `:latest` 且运行 Watchtower 时，服务器不会自动轮询�
 - 工作流：[`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
 - 升级 Runbook：[`docs/UPGRADING.md`](UPGRADING.md)
 - 模型哨兵说明：[`docs/model-guard.md`](model-guard.md)
-- 本次升级证据：[`docs/upgrades/2.25.4.md`](upgrades/2.25.4.md)
+- 本次升级证据：[`docs/upgrades/2.25.6.md`](upgrades/2.25.6.md)
 
 ## 7. 安全边界
 
